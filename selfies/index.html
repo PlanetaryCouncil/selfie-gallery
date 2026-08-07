@@ -193,16 +193,12 @@ Promise.all([
   }).catch(() => { fail(btcRow); fail(btcHash); });
 
 // ETH
-fetch('https://cloudflare-eth.com', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBlockByNumber', params: ['latest', false] })
-}).then(r => r.json())
+fetch('https://api.blockcypher.com/v1/eth/main')
+  .then(r => r.json())
   .then(j => {
-    const h = parseInt(j.result.number, 16);
-    stampData.eth = { height: h, hash: j.result.hash };
-    ethRow.textContent = h; ethRow.style.color = 'var(--green)';
-    ethHash.textContent = j.result.hash;
+    stampData.eth = { height: j.height, hash: '0x' + j.hash };
+    ethRow.textContent = j.height; ethRow.style.color = 'var(--green)';
+    ethHash.textContent = '0x' + j.hash;
   }).catch(() => { fail(ethRow); fail(ethHash); });
 
 // SOL
@@ -286,7 +282,7 @@ bSubmit.onclick = () => {
 const gal = document.getElementById('gallery');
 const galEmpty = document.getElementById('galEmpty');
 
-fetch('gallery/manifest.json', { cache: 'no-store' })
+fetch('../gallery/manifest.json', { cache: 'no-store' })
   .then(r => r.ok ? r.json() : Promise.reject())
   .then(items => {
     if (!items.length) { galEmpty.textContent = 'nobody yet. be first.'; return; }
@@ -299,7 +295,7 @@ fetch('gallery/manifest.json', { cache: 'no-store' })
         card.appendChild(pre);
       } else {
         const img = document.createElement('img');
-        img.src = 'gallery/' + it.file;
+        img.src = '../gallery/' + it.file;
         img.alt = it.who;
         img.loading = 'lazy';
         card.appendChild(img);
