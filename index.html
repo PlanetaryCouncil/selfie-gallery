@@ -80,6 +80,25 @@
     white-space: pre;
   }
   @media (min-width: 700px) { pre.shotAscii { font-size: 9px; } }
+  .viewer { max-width: 640px; }
+  .shutterWrap { display: flex; justify-content: center; padding: 14px 0 4px; }
+  button.shutter {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: transparent;
+    border: 2px solid var(--dim-green);
+    padding: 0; margin: 0;
+    position: relative;
+  }
+  button.shutter::after {
+    content: "";
+    position: absolute; inset: 5px;
+    border-radius: 50%;
+    background: var(--green);
+    transition: transform .08s ease;
+  }
+  button.shutter:hover { background: transparent; }
+  button.shutter:hover::after { transform: scale(.88); }
+  button.shutter:active::after { transform: scale(.72); }
   a { color: var(--cyan); }
   .rows div { display: flex; gap: 10px; padding: 3px 0; border-bottom: 1px dotted var(--grid); }
   .rows span:first-child {
@@ -176,11 +195,11 @@
     <h2>01 // TAKE ONE</h2>
     <p class="dim">
       Real camera. Browser asks. Say no and the gallery still works.<br>
-      Your face comes back as 80 columns of monochrome text &mdash;
-      the same medium the machines use. No photograph is kept.
+      The preview is already the artwork: 80 columns of outline, live,
+      before you press anything. Same medium the machines use.
+      No photograph is ever kept.
     </p>
     <button id="cam">OPEN CAMERA</button>
-    <button id="snap" disabled>CAPTURE</button>
     <button id="invert" disabled>INVERT</button>
     <button id="save" disabled>SAVE .TXT</button>
     <button id="submit" class="warn" disabled>SUBMIT TO GALLERY</button>
@@ -293,11 +312,85 @@ fetch('https://solana-rpc.publicnode.com', {
 // ─────────────── camera ───────────────
 const camWrap = document.getElementById('camWrap');
 const bCam = document.getElementById('cam');
-const bSnap = document.getElementById('snap');
 const bSave = document.getElementById('save');
 const bSubmit = document.getElementById('submit');
 const bInvert = document.getElementById('invert');
-let stream = null, video = null, shot = null;
+let stream = null, video = null, live = null;
+
+// ─────────────── face → 80 columns of outline ───────────────
+// Sobel edges on a downsampled luminance field. Monospace cells are
+// ~2x taller than wide, so we take half as many rows as columns.
+const COLS = 80;
+let asciiArt = '', inverted = false, frozen = false;
+
+const work = document.createElement('canvas');
+const wctx = work.getContext('2d', { willReadFrequently: true });
+
+function toAscii(source, w, h, invert) {
+  const rows = Math.max(1, Math.round(COLS * (h / w) * 0.5));
+  work.width = COLS; work.height = rows;
+  // mirror it — a selfie should look like the mirror you posed in
+  wctx.setTransform(-1, 0, 0, 1, COLS, 0);
+  wctx.drawImage(source, 0, 0, COLS, rows);
+  const px = wctx.getImageData(0, 0, COLS, rows).data;
+
+  const lum = new Float32Array(COLS * rows);
+  for (let i = 0; i < lum.length; i++) {
+    const o = i * 4;
+    lum[i] = 0.299 * px[o] + 0.587 * px[o + 1] + 0.114 * px[o + 2];
+  }
+
+  // Sobel: gradient magnitude and direction per cell
+  const mag = new Float32Array(COLS * rows);
+  const dir = new Uint8Array(COLS * rows);
+  let peak = 0;
+  const at = (x, y) => lum[Math.min(rows - 1, Math.max(0, y)) * COLS
+                         + Math.min(COLS - 1, Math.max(0, x))];
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const gx = -at(x-1,y-1) - 2*at(x-1,y) - at(x-1,y+1)
+               +  at(x+1,y-1) + 2*at(x+1,y) + at(x+1,y+1);
+      const gy = -at(x-1,y-1) - 2*at(x,y-1) - at(x+1,y-1)
+               +  at(x-1,y+1) + 2*at(x,y+1) + at(x+1,y+1);
+      const m = Math.hypot(gx, gy);
+      const i = y * COLS + x;
+      mag[i] = m;
+      if (m > peak) peak = m;
+      // angle of the edge itself, perpendicular to the gradient
+      let a = Math.atan2(gy, gx) + Math.PI / 2;
+      a = ((a % Math.PI) + Math.PI) % Math.PI;   // 0..PI
+      dir[i] = Math.round(a / Math.PI * 4) % 4;  // 0 - 1 / 2 | 3 \
+    }
+  }
+
+  const STROKE = ['-', '/', '|', '\\'];
+  const cut = peak * 0.22;   // below this it is flat skin or wall: nothing
+  let out = '';
+  for (let y = 0; y < rows; y++) {
+    let line = '';
+    for (let x = 0; x < COLS; x++) {
+      const i = y * COLS + x;
+      const on = invert ? mag[i] < cut : mag[i] >= cut;
+      line += on ? STROKE[dir[i]] : ' ';
+    }
+    out += line.replace(/\s+$/, '') + '\n';
+  }
+  return out.replace(/\n+$/, '');
+}
+
+function showAscii() {
+  if (live) live.textContent = asciiArt;
+}
+
+function frame() {
+  if (frozen || !video || video.readyState < 2) {
+    if (!frozen) requestAnimationFrame(frame);
+    return;
+  }
+  asciiArt = toAscii(video, video.videoWidth, video.videoHeight, inverted);
+  showAscii();
+  requestAnimationFrame(frame);
+}
 
 bCam.onclick = async () => {
   try {
@@ -309,88 +402,49 @@ bCam.onclick = async () => {
   video = document.createElement('video');
   video.autoplay = true; video.playsInline = true; video.muted = true;
   video.srcObject = stream;
+  await video.play().catch(() => {});
+
   camWrap.innerHTML = '';
-  camWrap.appendChild(video);
-  bSnap.disabled = false;
+  const viewer = document.createElement('div');
+  viewer.className = 'viewer';
+  live = document.createElement('pre');
+  live.className = 'shotAscii';
+  viewer.appendChild(live);
+  const shutterWrap = document.createElement('div');
+  shutterWrap.className = 'shutterWrap';
+  const shutter = document.createElement('button');
+  shutter.className = 'shutter';
+  shutter.title = 'capture';
+  shutter.onclick = capture;
+  shutterWrap.appendChild(shutter);
+  viewer.appendChild(shutterWrap);
+  camWrap.appendChild(viewer);
+
   bCam.textContent = 'CAMERA LIVE';
   bCam.disabled = true;
+  bInvert.disabled = false;
+  frame();
 };
 
-// ─────────────── face → 80 columns of text ───────────────
-// dark to light. monospace cells are ~2x taller than wide, so we
-// sample half as many rows as columns per unit of height.
-const RAMP = '@%#*+=-:. ';
-const COLS = 80;
-let asciiArt = '', inverted = false;
-
-function toAscii(source, w, h, invert) {
-  const rows = Math.max(1, Math.round(COLS * (h / w) * 0.5));
-  const c = document.createElement('canvas');
-  c.width = COLS; c.height = rows;
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  // mirror it — a selfie should look like the mirror you posed in
-  ctx.translate(COLS, 0);
-  ctx.scale(-1, 1);
-  ctx.drawImage(source, 0, 0, COLS, rows);
-  const px = ctx.getImageData(0, 0, COLS, rows).data;
-
-  // stretch contrast across whatever range the room actually gave us
-  const lum = new Float32Array(COLS * rows);
-  let lo = 255, hi = 0;
-  for (let i = 0; i < lum.length; i++) {
-    const o = i * 4;
-    const v = 0.299 * px[o] + 0.587 * px[o + 1] + 0.114 * px[o + 2];
-    lum[i] = v;
-    if (v < lo) lo = v;
-    if (v > hi) hi = v;
-  }
-  const span = Math.max(1, hi - lo);
-
-  let out = '';
-  for (let y = 0; y < rows; y++) {
-    let line = '';
-    for (let x = 0; x < COLS; x++) {
-      let t = (lum[y * COLS + x] - lo) / span;
-      if (invert) t = 1 - t;
-      line += RAMP[Math.min(RAMP.length - 1, Math.floor(t * RAMP.length))];
-    }
-    out += line.replace(/\s+$/, '') + '\n';
-  }
-  return out.replace(/\n+$/, '');
-}
-
-function showAscii() {
-  camWrap.innerHTML = '';
-  const pre = document.createElement('pre');
-  pre.className = 'shotAscii';
-  pre.textContent = asciiArt;
-  camWrap.appendChild(pre);
-}
-
-bSnap.onclick = () => {
-  shot = document.createElement('canvas');
-  shot.width = video.videoWidth;
-  shot.height = video.videoHeight;
-  shot.getContext('2d').drawImage(video, 0, 0);
+function capture() {
+  if (!video) return;
+  frozen = true;
   stream.getTracks().forEach(t => t.stop());
-  asciiArt = toAscii(shot, shot.width, shot.height, inverted);
-  showAscii();
-  shot = null; // the photograph is gone. only characters remain.
+  video = null;                 // no frame is retained. only characters.
+  document.querySelector('.shutterWrap').remove();
   bSave.disabled = false;
   bSubmit.disabled = false;
-  bInvert.disabled = false;
-  bSnap.disabled = true;
-};
+}
 
 bInvert.onclick = () => {
   inverted = !inverted;
-  asciiArt = asciiArt.split('\n').map(l =>
-    [...l].map(ch => {
-      const i = RAMP.indexOf(ch);
-      return i === -1 ? ch : RAMP[RAMP.length - 1 - i];
-    }).join('').replace(/\s+$/, '')
-  ).join('\n');
-  showAscii();
+  if (frozen) {
+    // already text — just swap ink and paper
+    asciiArt = asciiArt.split('\n').map(l =>
+      [...l].map(ch => ch === ' ' ? '·' : (ch === '·' ? ' ' : ch)).join('')
+    ).join('\n');
+    showAscii();
+  }
 };
 
 bSave.onclick = () => {
