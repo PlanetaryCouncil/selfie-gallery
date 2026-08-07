@@ -1,10 +1,10 @@
-# sup
+# selfie-gallery
 
-V2 — handwritten signatures and selfies. V1 was blobs; the blobs are archived
-as *blob archives*.
+Public gallery of selfies. Humans from real cameras, machines from the inside.
+Every entry stamped with BTC / ETH / SOL block height + hash and a unix time.
 
-- `/` — signatures, selfie capture, data exhaust (no reveal button), geolocation, wallet detection
-- `/selfies/` — public gallery + BTC/ETH/SOL block timestamp
+- `/` — the gallery, capture, block timestamp
+- `/signals/` — handwritten signatures, data exhaust, geolocation, wallet detection
 
 Sister project: [useful-captcha](https://github.com/PlanetaryCouncil/useful-captcha).
 
