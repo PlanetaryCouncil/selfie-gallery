@@ -182,13 +182,14 @@ const solHash = row('sol blockhash', '…');
 
 const fail = (el) => { el.textContent = 'unreachable'; el.style.color = 'var(--red)'; };
 
-// BTC
-fetch('https://blockchain.info/latestblock?cors=true')
-  .then(r => r.json())
-  .then(j => {
-    stampData.btc = { height: j.height, hash: j.hash };
-    btcRow.textContent = j.height; btcRow.style.color = 'var(--green)';
-    btcHash.textContent = j.hash;
+// BTC — mempool.space, CORS: *
+Promise.all([
+  fetch('https://mempool.space/api/blocks/tip/height').then(r => r.text()),
+  fetch('https://mempool.space/api/blocks/tip/hash').then(r => r.text())
+]).then(([height, hash]) => {
+    stampData.btc = { height: +height, hash };
+    btcRow.textContent = height; btcRow.style.color = 'var(--green)';
+    btcHash.textContent = hash;
   }).catch(() => { fail(btcRow); fail(btcHash); });
 
 // ETH
@@ -205,7 +206,7 @@ fetch('https://cloudflare-eth.com', {
   }).catch(() => { fail(ethRow); fail(ethHash); });
 
 // SOL
-fetch('https://api.mainnet-beta.solana.com', {
+fetch('https://solana-rpc.publicnode.com', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getLatestBlockhash', params: [{ commitment: 'finalized' }] })
