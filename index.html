@@ -71,7 +71,10 @@
   video, canvas.shot { width: 100%; max-width: 420px; border: 1px solid var(--border); display: block; }
   a { color: var(--cyan); }
   .rows div { display: flex; gap: 10px; padding: 3px 0; border-bottom: 1px dotted var(--grid); }
-  .rows span:first-child { color: var(--dim); min-width: 150px; }
+  .rows span:first-child {
+    color: var(--dim); min-width: 110px;
+    white-space: pre; letter-spacing: .5px;
+  }
   .rows span:last-child { word-break: break-all; }
   .rows span.nowrap {
     word-break: normal; white-space: nowrap;
@@ -154,7 +157,6 @@
       <b style="color:var(--green)">SRA time</b> is Singularity Regulation
       Authority authorised time &mdash; counted from
       <span class="nowrap">12 March 2026, 17:00:00 UTC</span>.
-      The milliseconds run quickly. That is the point.
     </div>
   </section>
 
@@ -206,14 +208,14 @@ function row(label, value, cls) {
   return b;
 }
 
-row('unix', stampData.unix, 'amber');
-const isoRow = row('iso (utc)', new Date(stampData.unix * 1000).toISOString(), 'text');
+row('UNIX', stampData.unix, 'amber');
+const isoRow = row('ISO (UTC)', new Date(stampData.unix * 1000).toISOString(), 'text');
 isoRow.classList.add('nowrap');
 
 // ─── SRA — Singularity Regulation Authority authorised time ───
 // epoch: 12 March 2026 17:00:00 UTC
 const SRA_EPOCH = Date.UTC(2026, 2, 12, 17, 0, 0);
-const sraRow = row('sra time', '…', 'green');
+const sraRow = row('SRA', '…', 'green');
 sraRow.classList.add('nowrap');
 
 function tickSRA() {
@@ -231,12 +233,12 @@ function tickSRA() {
 }
 tickSRA();
 
-const btcRow = row('btc block', 'fetching…');
-const btcHash = row('btc hash', '…');
-const ethRow = row('eth block', 'fetching…');
-const ethHash = row('eth hash', '…');
-const solRow = row('sol slot', 'fetching…');
-const solHash = row('sol blockhash', '…');
+const btcRow = row('BTC  #', 'fetching…');
+const btcHash = row('BTC  hash', '…');
+const ethRow = row('ETH  #', 'fetching…');
+const ethHash = row('ETH  hash', '…');
+const solRow = row('SOL  #', 'fetching…');
+const solHash = row('SOL  hash', '…');
 
 const fail = (el) => { el.textContent = 'unreachable'; el.style.color = 'var(--red)'; };
 
