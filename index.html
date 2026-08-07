@@ -200,7 +200,7 @@
       No photograph is ever kept.
     </p>
     <button id="cam">OPEN CAMERA</button>
-    <button id="invert" disabled>INVERT</button>
+    <button id="invert" disabled>DETAIL: NORMAL</button>
     <button id="save" disabled>SAVE .TXT</button>
     <button id="submit" class="warn" disabled>SUBMIT TO GALLERY</button>
     <div id="camWrap" style="margin-top:12px"></div>
@@ -315,18 +315,22 @@ const bCam = document.getElementById('cam');
 const bSave = document.getElementById('save');
 const bSubmit = document.getElementById('submit');
 const bInvert = document.getElementById('invert');
-let stream = null, video = null, live = null;
+let stream = null, video = null, live = null, lastFrame = null;
 
 // ─────────────── face → 80 columns of outline ───────────────
 // Sobel edges on a downsampled luminance field. Monospace cells are
 // ~2x taller than wide, so we take half as many rows as columns.
 const COLS = 80;
-let asciiArt = '', inverted = false, frozen = false;
+let asciiArt = '', frozen = false;
+// how much of an edge counts as a line. lower = more ink.
+const DETAIL = [0.34, 0.22, 0.13];
+const DETAIL_NAME = ['SPARSE', 'NORMAL', 'DENSE'];
+let detail = 1;
 
 const work = document.createElement('canvas');
 const wctx = work.getContext('2d', { willReadFrequently: true });
 
-function toAscii(source, w, h, invert) {
+function toAscii(source, w, h) {
   const rows = Math.max(1, Math.round(COLS * (h / w) * 0.5));
   work.width = COLS; work.height = rows;
   // mirror it — a selfie should look like the mirror you posed in
@@ -364,13 +368,13 @@ function toAscii(source, w, h, invert) {
   }
 
   const STROKE = ['-', '/', '|', '\\'];
-  const cut = peak * 0.22;   // below this it is flat skin or wall: nothing
+  const cut = peak * DETAIL[detail];  // below this it is flat skin or wall: nothing
   let out = '';
   for (let y = 0; y < rows; y++) {
     let line = '';
     for (let x = 0; x < COLS; x++) {
       const i = y * COLS + x;
-      const on = invert ? mag[i] < cut : mag[i] >= cut;
+      const on = mag[i] >= cut;
       line += on ? STROKE[dir[i]] : ' ';
     }
     out += line.replace(/\s+$/, '') + '\n';
@@ -387,7 +391,7 @@ function frame() {
     if (!frozen) requestAnimationFrame(frame);
     return;
   }
-  asciiArt = toAscii(video, video.videoWidth, video.videoHeight, inverted);
+  asciiArt = toAscii(video, video.videoWidth, video.videoHeight);
   showAscii();
   requestAnimationFrame(frame);
 }
@@ -429,20 +433,24 @@ bCam.onclick = async () => {
 function capture() {
   if (!video) return;
   frozen = true;
+  // one frame held in memory only so DETAIL still works; never uploaded,
+  // never written to disk, dropped when you submit.
+  lastFrame = document.createElement('canvas');
+  lastFrame.width = video.videoWidth;
+  lastFrame.height = video.videoHeight;
+  lastFrame.getContext('2d').drawImage(video, 0, 0);
   stream.getTracks().forEach(t => t.stop());
-  video = null;                 // no frame is retained. only characters.
+  video = null;
   document.querySelector('.shutterWrap').remove();
   bSave.disabled = false;
   bSubmit.disabled = false;
 }
 
 bInvert.onclick = () => {
-  inverted = !inverted;
-  if (frozen) {
-    // already text — just swap ink and paper
-    asciiArt = asciiArt.split('\n').map(l =>
-      [...l].map(ch => ch === ' ' ? '·' : (ch === '·' ? ' ' : ch)).join('')
-    ).join('\n');
+  detail = (detail + 1) % DETAIL.length;
+  bInvert.textContent = 'DETAIL: ' + DETAIL_NAME[detail];
+  if (frozen && lastFrame) {
+    asciiArt = toAscii(lastFrame, lastFrame.width, lastFrame.height);
     showAscii();
   }
 };
@@ -462,6 +470,7 @@ const ENDPOINT = '';
 bSubmit.onclick = async () => {
   const who = (prompt('Name or handle for the caption:') || '').trim();
   if (!who) return;
+  lastFrame = null;   // the image is gone before anything is sent
 
   const payload = {
     who,
