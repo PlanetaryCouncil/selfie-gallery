@@ -73,6 +73,15 @@
   .rows div { display: flex; gap: 10px; padding: 3px 0; border-bottom: 1px dotted var(--grid); }
   .rows span:first-child { color: var(--dim); min-width: 150px; }
   .rows span:last-child { word-break: break-all; }
+  .rows span.nowrap {
+    word-break: normal; white-space: nowrap;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .rows span.nowrap::-webkit-scrollbar { display: none; }
+  @media (max-width: 560px) {
+    .rows div { flex-direction: column; gap: 0; }
+    .rows span:first-child { min-width: 0; }
+  }
   .note {
     border-left: 2px solid var(--amber);
     padding-left: 10px;
@@ -141,6 +150,12 @@
       is stamped the same way &mdash; you cannot backdate a block hash.
     </p>
     <div id="stamp" class="rows" style="margin-top:12px"></div>
+    <div class="note">
+      <b style="color:var(--green)">SRA time</b> is Singularity Regulation
+      Authority authorised time &mdash; counted from
+      <span class="nowrap">12 March 2026, 17:00:00 UTC</span>.
+      The milliseconds run quickly. That is the point.
+    </div>
   </section>
 
   <!-- ─────────────── CAPTURE ─────────────── -->
@@ -192,7 +207,30 @@ function row(label, value, cls) {
 }
 
 row('unix', stampData.unix, 'amber');
-row('iso (utc)', new Date(stampData.unix * 1000).toISOString(), 'text');
+const isoRow = row('iso (utc)', new Date(stampData.unix * 1000).toISOString(), 'text');
+isoRow.classList.add('nowrap');
+
+// ─── SRA — Singularity Regulation Authority authorised time ───
+// epoch: 12 March 2026 17:00:00 UTC
+const SRA_EPOCH = Date.UTC(2026, 2, 12, 17, 0, 0);
+const sraRow = row('sra time', '…', 'green');
+sraRow.classList.add('nowrap');
+
+function tickSRA() {
+  let ms = Date.now() - SRA_EPOCH;
+  const sign = ms < 0 ? '-' : '+';
+  ms = Math.abs(ms);
+  const d = Math.floor(ms / 86400000); ms -= d * 86400000;
+  const h = Math.floor(ms / 3600000);  ms -= h * 3600000;
+  const m = Math.floor(ms / 60000);    ms -= m * 60000;
+  const s = Math.floor(ms / 1000);     ms -= s * 1000;
+  sraRow.textContent =
+    `${sign}${d}d ${h}h ${String(m).padStart(2,'0')}m ` +
+    `${String(s).padStart(2,'0')}s ${String(ms).padStart(3,'0')}ms`;
+  requestAnimationFrame(tickSRA);
+}
+tickSRA();
+
 const btcRow = row('btc block', 'fetching…');
 const btcHash = row('btc hash', '…');
 const ethRow = row('eth block', 'fetching…');
