@@ -68,7 +68,18 @@
   button:disabled { color: var(--dim); border-color: var(--border); cursor: not-allowed; }
   button.warn { color: var(--amber); border-color: var(--amber); }
   button.warn:hover:not(:disabled) { background: var(--amber); color: #000; }
-  video, canvas.shot { width: 100%; max-width: 420px; border: 1px solid var(--border); display: block; }
+  video { width: 100%; max-width: 420px; border: 1px solid var(--border); display: block; }
+  pre.shotAscii {
+    border: 1px solid var(--border);
+    background: #05080a;
+    color: var(--text);
+    padding: 10px;
+    font-size: 7px;
+    line-height: 1.0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  @media (min-width: 700px) { pre.shotAscii { font-size: 9px; } }
   a { color: var(--cyan); }
   .rows div { display: flex; gap: 10px; padding: 3px 0; border-bottom: 1px dotted var(--grid); }
   .rows span:first-child {
@@ -163,16 +174,21 @@
   <!-- ─────────────── CAPTURE ─────────────── -->
   <section>
     <h2>01 // TAKE ONE</h2>
-    <p class="dim">Real camera. Browser asks. Say no and the gallery still works.</p>
+    <p class="dim">
+      Real camera. Browser asks. Say no and the gallery still works.<br>
+      Your face comes back as 80 columns of monochrome text &mdash;
+      the same medium the machines use. No photograph is kept.
+    </p>
     <button id="cam">OPEN CAMERA</button>
     <button id="snap" disabled>CAPTURE</button>
-    <button id="save" disabled>SAVE .PNG</button>
+    <button id="invert" disabled>INVERT</button>
+    <button id="save" disabled>SAVE .TXT</button>
     <button id="submit" class="warn" disabled>SUBMIT TO GALLERY</button>
     <div id="camWrap" style="margin-top:12px"></div>
     <div class="note">
-      Nothing is uploaded automatically. SUBMIT opens a GitHub issue with your
-      block-stamp pre-filled; you attach the PNG yourself. Merged into the
-      gallery by hand. Consent all the way down.
+      The photograph never leaves your device &mdash; it is converted to
+      characters in the browser and discarded. Only the text is submitted.
+      Humans and machines end up in the same alphabet.
     </div>
   </section>
 
@@ -280,6 +296,7 @@ const bCam = document.getElementById('cam');
 const bSnap = document.getElementById('snap');
 const bSave = document.getElementById('save');
 const bSubmit = document.getElementById('submit');
+const bInvert = document.getElementById('invert');
 let stream = null, video = null, shot = null;
 
 bCam.onclick = async () => {
@@ -299,24 +316,88 @@ bCam.onclick = async () => {
   bCam.disabled = true;
 };
 
+// ─────────────── face → 80 columns of text ───────────────
+// dark to light. monospace cells are ~2x taller than wide, so we
+// sample half as many rows as columns per unit of height.
+const RAMP = '@%#*+=-:. ';
+const COLS = 80;
+let asciiArt = '', inverted = false;
+
+function toAscii(source, w, h, invert) {
+  const rows = Math.max(1, Math.round(COLS * (h / w) * 0.5));
+  const c = document.createElement('canvas');
+  c.width = COLS; c.height = rows;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  // mirror it — a selfie should look like the mirror you posed in
+  ctx.translate(COLS, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(source, 0, 0, COLS, rows);
+  const px = ctx.getImageData(0, 0, COLS, rows).data;
+
+  // stretch contrast across whatever range the room actually gave us
+  const lum = new Float32Array(COLS * rows);
+  let lo = 255, hi = 0;
+  for (let i = 0; i < lum.length; i++) {
+    const o = i * 4;
+    const v = 0.299 * px[o] + 0.587 * px[o + 1] + 0.114 * px[o + 2];
+    lum[i] = v;
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  const span = Math.max(1, hi - lo);
+
+  let out = '';
+  for (let y = 0; y < rows; y++) {
+    let line = '';
+    for (let x = 0; x < COLS; x++) {
+      let t = (lum[y * COLS + x] - lo) / span;
+      if (invert) t = 1 - t;
+      line += RAMP[Math.min(RAMP.length - 1, Math.floor(t * RAMP.length))];
+    }
+    out += line.replace(/\s+$/, '') + '\n';
+  }
+  return out.replace(/\n+$/, '');
+}
+
+function showAscii() {
+  camWrap.innerHTML = '';
+  const pre = document.createElement('pre');
+  pre.className = 'shotAscii';
+  pre.textContent = asciiArt;
+  camWrap.appendChild(pre);
+}
+
 bSnap.onclick = () => {
   shot = document.createElement('canvas');
-  shot.className = 'shot';
   shot.width = video.videoWidth;
   shot.height = video.videoHeight;
   shot.getContext('2d').drawImage(video, 0, 0);
-  camWrap.innerHTML = '';
-  camWrap.appendChild(shot);
   stream.getTracks().forEach(t => t.stop());
+  asciiArt = toAscii(shot, shot.width, shot.height, inverted);
+  showAscii();
+  shot = null; // the photograph is gone. only characters remain.
   bSave.disabled = false;
   bSubmit.disabled = false;
+  bInvert.disabled = false;
   bSnap.disabled = true;
 };
 
+bInvert.onclick = () => {
+  inverted = !inverted;
+  asciiArt = asciiArt.split('\n').map(l =>
+    [...l].map(ch => {
+      const i = RAMP.indexOf(ch);
+      return i === -1 ? ch : RAMP[RAMP.length - 1 - i];
+    }).join('').replace(/\s+$/, '')
+  ).join('\n');
+  showAscii();
+};
+
 bSave.onclick = () => {
+  const blob = new Blob([asciiArt + '\n'], { type: 'text/plain' });
   const a = document.createElement('a');
-  a.download = 'selfie-' + stampData.unix + '.png';
-  a.href = shot.toDataURL('image/png');
+  a.download = 'selfie-' + stampData.unix + '.txt';
+  a.href = URL.createObjectURL(blob);
   a.click();
 };
 
@@ -330,14 +411,18 @@ bSubmit.onclick = async () => {
 
   const payload = {
     who,
-    kind: 'photo',
+    kind: 'ascii',
     stamp: { ...stampData, sra: sraRow.textContent },
-    image: shot.toDataURL('image/png')
+    art: asciiArt
   };
 
   if (!ENDPOINT) {
     const body = [
-      'Attach your selfie PNG to this issue and it goes in the gallery.',
+      'A selfie, in 80 columns.',
+      '',
+      '```',
+      payload.art,
+      '```',
       '',
       '**Stamp at capture**',
       '```json',
