@@ -481,9 +481,9 @@ bSave.onclick = () => {
   a.click();
 };
 
-// Set this to the collector URL and SUBMIT posts straight to the gallery.
-// Empty string = no backend wired yet, so we fall back to a GitHub issue.
-const ENDPOINT = '';
+// The board. Faces POST here and the gallery reads back from here.
+// It is the same machine the handwritten signatures land on.
+const ENDPOINT = 'https://cockpit-1.tail151af.ts.net/api/selfies';
 
 bSubmit.onclick = async () => {
   const who = (prompt('Name or handle for the caption:') || '').trim();
@@ -497,28 +497,6 @@ bSubmit.onclick = async () => {
     stamp: { ...stampData, sra: sraRow.textContent },
     art: asciiArt
   };
-
-  if (!ENDPOINT) {
-    const body = [
-      'A selfie, in 80 columns. Filter: ' + payload.filter,
-      '',
-      '```',
-      payload.art,
-      '```',
-      '',
-      '**Stamp at capture**',
-      '```json',
-      JSON.stringify(payload.stamp, null, 2),
-      '```',
-      '',
-      'Caption: ' + who
-    ].join('\n');
-    const url = 'https://github.com/PlanetaryCouncil/selfie-gallery/issues/new'
-      + '?title=' + encodeURIComponent('selfie submission ' + stampData.unix)
-      + '&body=' + encodeURIComponent(body);
-    window.open(url, '_blank', 'noopener');
-    return;
-  }
 
   bSubmit.disabled = true;
   bSubmit.textContent = 'SENDING…';
@@ -569,12 +547,32 @@ function openBox(it) {
 const gal = document.getElementById('gallery');
 const galEmpty = document.getElementById('galEmpty');
 
+// live faces from the board carry {who, art, kind, stamp:{unix,btc...}};
+// flatten the stamp so a card can read it like a seeded entry.
+function normalise(it) {
+  if (it.stamp) {
+    return {
+      kind: it.kind || 'ascii',
+      who: it.who,
+      art: it.art,
+      unix: it.stamp.unix,
+      btc: it.stamp.btc && it.stamp.btc.height,
+    };
+  }
+  return it;
+}
+
 function loadGallery() {
   gal.innerHTML = ''; galEmpty.textContent = '';
-  const src = ENDPOINT ? ENDPOINT : 'gallery/manifest.json';
-  fetch(src, { cache: 'no-store' })
-  .then(r => r.ok ? r.json() : Promise.reject())
-  .then(items => {
+  // the seeded machine self-portraits, plus everyone who said yes on the board
+  Promise.all([
+    fetch('gallery/manifest.json', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : []).catch(() => []),
+    fetch(ENDPOINT, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : []).catch(() => [])
+  ])
+  .then(([seeds, live]) => {
+    const items = [...live.map(normalise), ...seeds];
     if (!items.length) { galEmpty.textContent = 'nobody yet. be first.'; return; }
     for (const it of items) {
       const card = document.createElement('div');
@@ -611,8 +609,7 @@ function loadGallery() {
       card.appendChild(cap);
       gal.appendChild(card);
     }
-  })
-  .catch(() => { galEmpty.textContent = 'nobody yet. be first.'; });
+  });
 }
 loadGallery();
 </script>
