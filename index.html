@@ -75,12 +75,28 @@
     color: var(--text);
     padding: 10px;
     font-size: 7px;
-    line-height: 1.0;
+    line-height: 1.15;
     overflow-x: auto;
     white-space: pre;
+    /* 30 rows of text, always — the box never resizes, so the
+       shutter underneath never moves */
+    height: calc(30 * 7px * 1.15 + 22px);
   }
-  @media (min-width: 700px) { pre.shotAscii { font-size: 9px; } }
-  .viewer { max-width: 640px; }
+  @media (min-width: 700px) {
+    pre.shotAscii { font-size: 9px; height: calc(30 * 9px * 1.15 + 22px); }
+  }
+  .viewer { max-width: 660px; }
+  .filters { margin: 10px 0 2px; }
+  button.filt {
+    padding: 5px 10px; margin: 3px 5px 3px 0;
+    color: var(--dim); border-color: var(--border);
+    letter-spacing: .5px;
+  }
+  button.filt:hover { background: var(--border); color: var(--text); }
+  button.filt.on {
+    color: #000; background: var(--green); border-color: var(--green);
+  }
+  button.filt.on:hover { background: var(--green); color: #000; }
   .shutterWrap { display: flex; justify-content: center; padding: 14px 0 4px; }
   button.shutter {
     width: 56px; height: 56px; border-radius: 50%;
@@ -195,14 +211,14 @@
     <h2>01 // TAKE ONE</h2>
     <p class="dim">
       Real camera. Browser asks. Say no and the gallery still works.<br>
-      The preview is already the artwork: 80 columns of outline, live,
-      before you press anything. Same medium the machines use.
-      No photograph is ever kept.
+      The preview is already the artwork: a fixed 80 &times; 30 grid, live,
+      before you press anything. Pick a filter &mdash; it switches instantly,
+      and still switches after the shutter. No photograph is ever kept.
     </p>
     <button id="cam">OPEN CAMERA</button>
-    <button id="invert" disabled>DETAIL: NORMAL</button>
     <button id="save" disabled>SAVE .TXT</button>
     <button id="submit" class="warn" disabled>SUBMIT TO GALLERY</button>
+    <div id="filters" class="filters"></div>
     <div id="camWrap" style="margin-top:12px"></div>
     <div class="note">
       The photograph never leaves your device &mdash; it is converted to
@@ -314,86 +330,188 @@ const camWrap = document.getElementById('camWrap');
 const bCam = document.getElementById('cam');
 const bSave = document.getElementById('save');
 const bSubmit = document.getElementById('submit');
-const bInvert = document.getElementById('invert');
+const filterBar = document.getElementById('filters');
 let stream = null, video = null, live = null, lastFrame = null;
 
-// ─────────────── face → 80 columns of outline ───────────────
-// Sobel edges on a downsampled luminance field. Monospace cells are
-// ~2x taller than wide, so we take half as many rows as columns.
-const COLS = 80;
-let asciiArt = '', frozen = false;
-// how much of an edge counts as a line. lower = more ink.
-const DETAIL = [0.34, 0.22, 0.13];
-const DETAIL_NAME = ['SPARSE', 'NORMAL', 'DENSE'];
-let detail = 1;
+// ─────────────── the viewfinder ───────────────
+// A fixed 80 x 30 grid, always. Every frame fills every cell, so the
+// preview never changes size and nothing below it jumps around.
+const COLS = 80, ROWS = 30;
 
 const work = document.createElement('canvas');
+work.width = COLS; work.height = ROWS;
 const wctx = work.getContext('2d', { willReadFrequently: true });
 
-function toAscii(source, w, h) {
-  const rows = Math.max(1, Math.round(COLS * (h / w) * 0.5));
-  work.width = COLS; work.height = rows;
-  // mirror it — a selfie should look like the mirror you posed in
+// sample the source with a centre crop, mirrored like a real mirror
+function sample(source, w, h) {
+  const want = COLS / (ROWS * 2);          // cells are ~2x tall
+  const have = w / h;
+  let sw = w, sh = h, sx = 0, sy = 0;
+  if (have > want) { sw = h * want; sx = (w - sw) / 2; }
+  else             { sh = w / want; sy = (h - sh) / 2; }
   wctx.setTransform(-1, 0, 0, 1, COLS, 0);
-  wctx.drawImage(source, 0, 0, COLS, rows);
-  const px = wctx.getImageData(0, 0, COLS, rows).data;
-
-  const lum = new Float32Array(COLS * rows);
+  wctx.drawImage(source, sx, sy, sw, sh, 0, 0, COLS, ROWS);
+  const px = wctx.getImageData(0, 0, COLS, ROWS).data;
+  const lum = new Float32Array(COLS * ROWS);
+  let lo = 255, hi = 0;
   for (let i = 0; i < lum.length; i++) {
     const o = i * 4;
-    lum[i] = 0.299 * px[o] + 0.587 * px[o + 1] + 0.114 * px[o + 2];
+    const v = 0.299 * px[o] + 0.587 * px[o+1] + 0.114 * px[o+2];
+    lum[i] = v;
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
   }
+  // stretch to whatever range the room actually gave us
+  const span = Math.max(1, hi - lo);
+  for (let i = 0; i < lum.length; i++) lum[i] = (lum[i] - lo) / span;
+  return lum;
+}
 
-  // Sobel: gradient magnitude and direction per cell
-  const mag = new Float32Array(COLS * rows);
-  const dir = new Uint8Array(COLS * rows);
-  let peak = 0;
-  const at = (x, y) => lum[Math.min(rows - 1, Math.max(0, y)) * COLS
-                         + Math.min(COLS - 1, Math.max(0, x))];
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < COLS; x++) {
-      const gx = -at(x-1,y-1) - 2*at(x-1,y) - at(x-1,y+1)
-               +  at(x+1,y-1) + 2*at(x+1,y) + at(x+1,y+1);
-      const gy = -at(x-1,y-1) - 2*at(x,y-1) - at(x+1,y-1)
-               +  at(x-1,y+1) + 2*at(x,y+1) + at(x+1,y+1);
-      const m = Math.hypot(gx, gy);
-      const i = y * COLS + x;
-      mag[i] = m;
-      if (m > peak) peak = m;
-      // angle of the edge itself, perpendicular to the gradient
-      let a = Math.atan2(gy, gx) + Math.PI / 2;
-      a = ((a % Math.PI) + Math.PI) % Math.PI;   // 0..PI
-      dir[i] = Math.round(a / Math.PI * 4) % 4;  // 0 - 1 / 2 | 3 \
-    }
-  }
-
-  const STROKE = ['-', '/', '|', '\\'];
-  const cut = peak * DETAIL[detail];  // below this it is flat skin or wall: nothing
+const grid = (fn) => {
   let out = '';
-  for (let y = 0; y < rows; y++) {
-    let line = '';
-    for (let x = 0; x < COLS; x++) {
-      const i = y * COLS + x;
-      const on = mag[i] >= cut;
-      line += on ? STROKE[dir[i]] : ' ';
-    }
-    out += line.replace(/\s+$/, '') + '\n';
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) out += fn(x, y);
+    if (y < ROWS - 1) out += '\n';
   }
-  return out.replace(/\n+$/, '');
+  return out;
+};
+
+function sobel(lum) {
+  const mag = new Float32Array(COLS * ROWS);
+  const dir = new Uint8Array(COLS * ROWS);
+  let peak = 0;
+  const at = (x, y) => lum[Math.min(ROWS-1, Math.max(0, y)) * COLS
+                         + Math.min(COLS-1, Math.max(0, x))];
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const gx = -at(x-1,y-1) - 2*at(x-1,y) - at(x-1,y+1)
+             +  at(x+1,y-1) + 2*at(x+1,y) + at(x+1,y+1);
+    const gy = -at(x-1,y-1) - 2*at(x,y-1) - at(x+1,y-1)
+             +  at(x-1,y+1) + 2*at(x,y+1) + at(x+1,y+1);
+    const i = y * COLS + x;
+    mag[i] = Math.hypot(gx, gy);
+    if (mag[i] > peak) peak = mag[i];
+    let a = Math.atan2(gy, gx) + Math.PI / 2;
+    a = ((a % Math.PI) + Math.PI) % Math.PI;
+    dir[i] = Math.round(a / Math.PI * 4) % 4;
+  }
+  return { mag, dir, peak: Math.max(peak, 1e-6) };
 }
 
-function showAscii() {
-  if (live) live.textContent = asciiArt;
+// ─────────────── the filters ───────────────
+const FILTERS = [
+  { n: 1, name: 'OUTLINE', run(lum) {
+      const { mag, dir, peak } = sobel(lum);
+      const S = ['-', '/', '|', '\\'];
+      const cut = peak * 0.22;
+      return grid((x, y) => {
+        const i = y * COLS + x;
+        return mag[i] >= cut ? S[dir[i]] : ' ';
+      });
+  }},
+  { n: 2, name: 'SHADE', run(lum) {
+      const R = '@%#*+=-:. ';
+      return grid((x, y) =>
+        R[Math.min(R.length - 1, Math.floor((1 - lum[y*COLS+x]) * R.length))]);
+  }},
+  { n: 3, name: 'BLOCKS', run(lum) {
+      const R = ' ░▒▓█';
+      return grid((x, y) =>
+        R[Math.min(R.length - 1, Math.floor((1 - lum[y*COLS+x]) * R.length))]);
+  }},
+  { n: 4, name: 'DITHER', run(lum) {
+      // Floyd–Steinberg, one bit per cell
+      const b = Float32Array.from(lum);
+      const push = (x, y, e) => {
+        if (x < 0 || x >= COLS || y >= ROWS) return;
+        b[y*COLS+x] += e;
+      };
+      for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+        const i = y*COLS+x, old = b[i], nw = old < 0.5 ? 0 : 1;
+        b[i] = nw;
+        const e = old - nw;
+        push(x+1, y,   e * 7/16);
+        push(x-1, y+1, e * 3/16);
+        push(x,   y+1, e * 5/16);
+        push(x+1, y+1, e * 1/16);
+      }
+      return grid((x, y) => b[y*COLS+x] < 0.5 ? '█' : ' ');
+  }},
+  { n: 5, name: 'CONTOUR', run(lum) {
+      // draw only where the image crosses a brightness band
+      const BANDS = 6;
+      const band = (v) => Math.floor(v * BANDS);
+      return grid((x, y) => {
+        const i = y*COLS+x, b = band(lum[i]);
+        const r = x + 1 < COLS && band(lum[i+1]) !== b;
+        const d = y + 1 < ROWS && band(lum[i+COLS]) !== b;
+        return r && d ? '+' : r ? '|' : d ? '_' : ' ';
+      });
+  }},
+  { n: 6, name: 'SCANLINE', run(lum) {
+      const R = '@%#*+=-:. ';
+      return grid((x, y) => y % 2
+        ? ' '
+        : R[Math.min(R.length-1, Math.floor((1 - lum[y*COLS+x]) * R.length))]);
+  }},
+  { n: 7, name: 'GHOST', run(lum) {
+      // edges in punctuation, deep shadow in blocks, the rest empty
+      const { mag, peak } = sobel(lum);
+      const cut = peak * 0.28;
+      return grid((x, y) => {
+        const i = y*COLS+x;
+        if (mag[i] >= cut) return '·';
+        return lum[i] < 0.22 ? '▓' : lum[i] > 0.86 ? '˙' : ' ';
+      });
+  }}
+];
+let filter = 0;
+
+function render(source, w, h) {
+  return FILTERS[filter].run(sample(source, w, h));
 }
+
+FILTERS.forEach((f, idx) => {
+  const b = document.createElement('button');
+  b.className = 'filt' + (idx === filter ? ' on' : '');
+  b.textContent = f.n + ' ' + f.name;
+  b.onclick = () => {
+    filter = idx;
+    [...filterBar.children].forEach((c, i) =>
+      c.classList.toggle('on', i === idx));
+    if (lastFrame) { asciiArt = render(lastFrame, lastFrame.width, lastFrame.height); showAscii(); }
+  };
+  filterBar.appendChild(b);
+});
+
+let asciiArt = '', frozen = false;
+function showAscii() { if (live) live.textContent = asciiArt; }
 
 function frame() {
-  if (frozen || !video || video.readyState < 2) {
-    if (!frozen) requestAnimationFrame(frame);
-    return;
+  if (frozen) return;
+  if (video && video.readyState >= 2) {
+    asciiArt = render(video, video.videoWidth, video.videoHeight);
+    showAscii();
   }
-  asciiArt = toAscii(video, video.videoWidth, video.videoHeight);
-  showAscii();
   requestAnimationFrame(frame);
+}
+
+function buildViewer() {
+  camWrap.innerHTML = '';
+  const viewer = document.createElement('div');
+  viewer.className = 'viewer';
+  live = document.createElement('pre');
+  live.className = 'shotAscii';
+  live.textContent = grid(() => ' ');
+  viewer.appendChild(live);
+  const sw = document.createElement('div');
+  sw.className = 'shutterWrap';
+  const sh = document.createElement('button');
+  sh.className = 'shutter';
+  sh.title = 'capture';
+  sh.onclick = capture;
+  sw.appendChild(sh);
+  viewer.appendChild(sw);
+  camWrap.appendChild(viewer);
 }
 
 bCam.onclick = async () => {
@@ -407,53 +525,28 @@ bCam.onclick = async () => {
   video.autoplay = true; video.playsInline = true; video.muted = true;
   video.srcObject = stream;
   await video.play().catch(() => {});
-
-  camWrap.innerHTML = '';
-  const viewer = document.createElement('div');
-  viewer.className = 'viewer';
-  live = document.createElement('pre');
-  live.className = 'shotAscii';
-  viewer.appendChild(live);
-  const shutterWrap = document.createElement('div');
-  shutterWrap.className = 'shutterWrap';
-  const shutter = document.createElement('button');
-  shutter.className = 'shutter';
-  shutter.title = 'capture';
-  shutter.onclick = capture;
-  shutterWrap.appendChild(shutter);
-  viewer.appendChild(shutterWrap);
-  camWrap.appendChild(viewer);
-
+  buildViewer();
   bCam.textContent = 'CAMERA LIVE';
   bCam.disabled = true;
-  bInvert.disabled = false;
   frame();
 };
 
 function capture() {
   if (!video) return;
   frozen = true;
-  // one frame held in memory only so DETAIL still works; never uploaded,
-  // never written to disk, dropped when you submit.
+  // one frame held in memory only, so the filter buttons still work.
+  // never uploaded, never written to disk, dropped when you submit.
   lastFrame = document.createElement('canvas');
   lastFrame.width = video.videoWidth;
   lastFrame.height = video.videoHeight;
   lastFrame.getContext('2d').drawImage(video, 0, 0);
   stream.getTracks().forEach(t => t.stop());
   video = null;
-  document.querySelector('.shutterWrap').remove();
+  const sw = document.querySelector('.shutterWrap');
+  if (sw) sw.remove();
   bSave.disabled = false;
   bSubmit.disabled = false;
 }
-
-bInvert.onclick = () => {
-  detail = (detail + 1) % DETAIL.length;
-  bInvert.textContent = 'DETAIL: ' + DETAIL_NAME[detail];
-  if (frozen && lastFrame) {
-    asciiArt = toAscii(lastFrame, lastFrame.width, lastFrame.height);
-    showAscii();
-  }
-};
 
 bSave.onclick = () => {
   const blob = new Blob([asciiArt + '\n'], { type: 'text/plain' });
@@ -475,13 +568,14 @@ bSubmit.onclick = async () => {
   const payload = {
     who,
     kind: 'ascii',
+    filter: FILTERS[filter].name,
     stamp: { ...stampData, sra: sraRow.textContent },
     art: asciiArt
   };
 
   if (!ENDPOINT) {
     const body = [
-      'A selfie, in 80 columns.',
+      'A selfie, in 80 columns. Filter: ' + payload.filter,
       '',
       '```',
       payload.art,
