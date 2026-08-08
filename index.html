@@ -416,7 +416,7 @@ const FILTERS = [
   { n: 3, name: 'BLOCKS', run(lum) {
       const R = ' ░▒▓█';
       return grid((x, y) =>
-        R[Math.min(R.length - 1, Math.floor((1 - lum[y*COLS+x]) * R.length))]);
+        R[Math.min(R.length - 1, Math.floor(lum[y*COLS+x] * R.length))]);
   }},
   { n: 4, name: 'DITHER', run(lum) {
       // Floyd–Steinberg, one bit per cell
@@ -434,7 +434,7 @@ const FILTERS = [
         push(x,   y+1, e * 5/16);
         push(x+1, y+1, e * 1/16);
       }
-      return grid((x, y) => b[y*COLS+x] < 0.5 ? '█' : ' ');
+      return grid((x, y) => b[y*COLS+x] < 0.5 ? ' ' : '█');
   }},
   { n: 5, name: 'CONTOUR', run(lum) {
       // draw only where the image crosses a brightness band
@@ -460,7 +460,7 @@ const FILTERS = [
       return grid((x, y) => {
         const i = y*COLS+x;
         if (mag[i] >= cut) return '·';
-        return lum[i] < 0.22 ? '▓' : lum[i] > 0.86 ? '˙' : ' ';
+        return lum[i] > 0.82 ? '▓' : ' ';
       });
   }}
 ];
