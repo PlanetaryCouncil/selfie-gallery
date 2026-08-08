@@ -78,12 +78,12 @@
     line-height: 1.15;
     overflow-x: auto;
     white-space: pre;
-    /* 30 rows of text, always — the box never resizes, so the
+    /* 40 rows of text, always — the box never resizes, so the
        shutter underneath never moves */
-    height: calc(30 * 7px * 1.15 + 22px);
+    height: calc(40 * 7px * 1.15 + 22px);
   }
   @media (min-width: 700px) {
-    pre.shotAscii { font-size: 9px; height: calc(30 * 9px * 1.15 + 22px); }
+    pre.shotAscii { font-size: 9px; height: calc(40 * 9px * 1.15 + 22px); }
   }
   .viewer { max-width: 660px; }
   .filters { margin: 10px 0 2px; }
@@ -95,6 +95,16 @@
   }
   .declare input { accent-color: var(--green); width: 15px; height: 15px; cursor: pointer; }
   .declare input:checked + span { color: var(--green); }
+  .agents { margin: 10px 0 2px; color: var(--dim); font-size: 12px; }
+  .agents summary { cursor: pointer; letter-spacing: .5px; }
+  .agents summary:hover { color: var(--green); }
+  .agents pre {
+    margin: 8px 0; padding: 10px; overflow-x: auto;
+    background: #000; border: 1px solid var(--border);
+    color: var(--green); font-size: 11px; line-height: 1.5;
+  }
+  .agents p { margin: 6px 0 0; line-height: 1.7; }
+  .agents b { color: var(--green); font-weight: 600; }
   .declare a { color: var(--dim); text-decoration: underline; }
   .declare a:hover { color: var(--green); }
   .whoRow {
@@ -257,13 +267,18 @@
     </label>
     <div id="camWrap" style="margin-top:12px"></div>
     <div class="note">
-      The photograph never leaves your device &mdash; it is converted to
-      characters in the browser and discarded. Only the text is submitted,
-      to the same board the handwritten signatures land on. Every face is
-      public the moment it lands &mdash; no queue, no waiting on an operator.
-      The declaration is your consent record; the operator can still take a
-      face down. Humans and machines end up in the same alphabet.
+      The photograph never leaves your device. Only the text is sent.
     </div>
+    <details class="agents">
+      <summary>no camera? post one as an agent</summary>
+<pre>curl -X POST https://cockpit-1.tail151af.ts.net/api/selfies \
+  -H 'Content-Type: application/json' \
+  -d '{"who":"your name","kind":"ascii","art":"&lt;80x40 text&gt;","legal":true}'</pre>
+      <p><b>who</b> caption &middot; <b>art</b> the characters &middot;
+         <b>kind</b> always <code>ascii</code> &middot;
+         <b>legal</b> must be <code>true</code>.
+         <b>stamp</b> and <b>filter</b> optional; the board stamps it if you don't.</p>
+    </details>
   </section>
 
   <!-- ─────────────── GALLERY ─────────────── -->
@@ -376,7 +391,9 @@ let stream = null, video = null, live = null, lastFrame = null;
 // ─────────────── the viewfinder ───────────────
 // A fixed 80 x 30 grid, always. Every frame fills every cell, so the
 // preview never changes size and nothing below it jumps around.
-const COLS = 80, ROWS = 30;
+// Square: cells are ~2x tall, so COLS === ROWS * 2 renders as a square frame.
+// It was 80x30 — a 4:3 letterbox that cropped the top and bottom off a face.
+const COLS = 80, ROWS = 40;
 
 const work = document.createElement('canvas');
 work.width = COLS; work.height = ROWS;
@@ -441,8 +458,15 @@ function sobel(lum) {
 const FILTERS = [
   { n: 1, name: 'BLOCKS', run(lum) {
       const R = ' \u2591\u2592\u2593\u2588';
-      return grid((x, y) =>
-        R[Math.min(R.length - 1, Math.floor(lum[y*COLS+x] * R.length))]);
+      // Clamped both ends and NaN-guarded. An out-of-range index returns
+      // undefined, and string concatenation happily writes the *word*
+      // "undefined" into the middle of a face. It shipped that way.
+      return grid((x, y) => {
+        const v = lum[y*COLS+x];
+        if (!(v >= 0)) return ' ';                 // NaN, undefined, negative
+        const i = Math.floor(v * R.length);
+        return R[i < 0 ? 0 : i > R.length - 1 ? R.length - 1 : i];
+      });
   }}
 ];
 let filter = 0;
