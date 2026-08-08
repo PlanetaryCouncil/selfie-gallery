@@ -95,6 +95,25 @@
   }
   .declare input { accent-color: var(--green); width: 15px; height: 15px; cursor: pointer; }
   .declare input:checked + span { color: var(--green); }
+  .declare a { color: var(--dim); text-decoration: underline; }
+  .declare a:hover { color: var(--green); }
+  .whoRow {
+    display: flex; align-items: center; gap: 8px;
+    margin: 14px 0 2px; flex-wrap: wrap;
+  }
+  .whoRow label {
+    color: var(--dim); letter-spacing: .5px; font-size: 12px;
+  }
+  #who {
+    font: inherit; font-size: 13px;
+    background: #000; color: var(--green);
+    border: 1px solid var(--dim-green);
+    padding: 7px 10px; min-width: 220px; flex: 1; max-width: 320px;
+    letter-spacing: .5px;
+  }
+  #who:focus { outline: none; border-color: var(--green); }
+  #who::placeholder { color: var(--dim); }
+  #who.missing { border-color: var(--amber); }
   button.filt {
     padding: 5px 10px; margin: 3px 5px 3px 0;
     color: var(--dim); border-color: var(--border);
@@ -225,9 +244,16 @@
     <button id="cam">OPEN CAMERA</button>
     <button id="save" disabled>SAVE .TXT</button>
     <button id="submit" class="warn" disabled>SUBMIT TO GALLERY</button>
+    <div class="whoRow">
+      <label for="who">CAPTION</label>
+      <input id="who" type="text" maxlength="40" autocomplete="nickname"
+             placeholder="name or handle">
+    </div>
     <label class="declare">
       <input type="checkbox" id="legal">
-      <span>my face is not illegal</span>
+      <span>my face and name are not illegal &mdash;
+        <a href="https://cockpit-1.tail151af.ts.net/moderation"
+           target="_blank" rel="noopener">moderation policy</a></span>
     </label>
     <div id="camWrap" style="margin-top:12px"></div>
     <div class="note">
@@ -344,6 +370,7 @@ const bCam = document.getElementById('cam');
 const bSave = document.getElementById('save');
 const bSubmit = document.getElementById('submit');
 const cLegal = document.getElementById('legal');
+const iWho = document.getElementById('who');
 let stream = null, video = null, live = null, lastFrame = null;
 
 // ─────────────── the viewfinder ───────────────
@@ -456,6 +483,10 @@ function buildViewer() {
 }
 
 bCam.onclick = async () => {
+  // Also the RETAKE path: one shot used to be final, and the only way back
+  // was reloading the page. Reopening the camera is the same act as opening
+  // it the first time, so it is the same button.
+  frozen = false;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
   } catch (e) {
@@ -487,6 +518,9 @@ function capture() {
   if (sw) sw.remove();
   bSave.disabled = false;
   bSubmit.disabled = false;
+  // The way back. Visible from the moment there is something to retake.
+  bCam.textContent = 'RETAKE';
+  bCam.disabled = false;
 }
 
 bSave.onclick = () => {
@@ -502,6 +536,19 @@ bSave.onclick = () => {
 const ENDPOINT = 'https://cockpit-1.tail151af.ts.net/api/selfies';
 
 bSubmit.onclick = async () => {
+  // Both requirements are visible on the page before you press this, so a
+  // failure here points at something already on screen. Nothing new appears.
+  const who = iWho.value.trim();
+  if (!who) {
+    bSubmit.textContent = 'NAME FIRST';
+    iWho.classList.add('missing');
+    iWho.focus();
+    setTimeout(() => {
+      bSubmit.textContent = 'SUBMIT TO GALLERY';
+      iWho.classList.remove('missing');
+    }, 2000);
+    return;
+  }
   if (!cLegal.checked) {
     bSubmit.textContent = 'TICK THE BOX FIRST';
     cLegal.parentElement.style.color = 'var(--amber)';
@@ -511,8 +558,6 @@ bSubmit.onclick = async () => {
     }, 2000);
     return;
   }
-  const who = (prompt('Name or handle for the caption:') || '').trim();
-  if (!who) return;
   lastFrame = null;   // the image is gone before anything is sent
 
   const payload = {
@@ -563,7 +608,11 @@ function openBox(it) {
   }
   const cap = document.createElement('div');
   cap.className = 'cap';
-  cap.textContent = it.who + '  ·  unix ' + it.unix + (it.btc ? '  ·  btc ' + it.btc : '');
+  // Every part optional: a face can land before its stamp is written, and a
+  // missing field must read as absent, not as the word "undefined".
+  cap.textContent = [it.who || 'anonymous',
+                     it.unix ? 'unix ' + it.unix : null,
+                     it.btc ? 'btc ' + it.btc : null].filter(Boolean).join('  ·  ');
   box.appendChild(cap);
   box.scrollTop = 0;
   box.classList.add('on');
@@ -629,9 +678,10 @@ function loadGallery() {
       const cap = document.createElement('div');
       cap.className = 'cap';
       cap.innerHTML = '<b></b><br><span></span>';
-      cap.querySelector('b').textContent = it.who;
+      cap.querySelector('b').textContent = it.who || 'anonymous';
       cap.querySelector('span').textContent =
-        it.note || ((it.btc ? 'BTC ' + it.btc + ' · ' : '') + 'unix ' + it.unix);
+        it.note || [it.btc ? 'BTC ' + it.btc : null,
+                    it.unix ? 'unix ' + it.unix : null].filter(Boolean).join(' · ');
       card.appendChild(cap);
       gal.appendChild(card);
     }
