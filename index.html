@@ -218,7 +218,6 @@
     <button id="cam">OPEN CAMERA</button>
     <button id="save" disabled>SAVE .TXT</button>
     <button id="submit" class="warn" disabled>SUBMIT TO GALLERY</button>
-    <div id="filters" class="filters"></div>
     <div id="camWrap" style="margin-top:12px"></div>
     <div class="note">
       The photograph never leaves your device &mdash; it is converted to
@@ -330,7 +329,6 @@ const camWrap = document.getElementById('camWrap');
 const bCam = document.getElementById('cam');
 const bSave = document.getElementById('save');
 const bSubmit = document.getElementById('submit');
-const filterBar = document.getElementById('filters');
 let stream = null, video = null, live = null, lastFrame = null;
 
 // ─────────────── the viewfinder ───────────────
@@ -399,69 +397,10 @@ function sobel(lum) {
 
 // ─────────────── the filters ───────────────
 const FILTERS = [
-  { n: 1, name: 'OUTLINE', run(lum) {
-      const { mag, dir, peak } = sobel(lum);
-      const S = ['-', '/', '|', '\\'];
-      const cut = peak * 0.22;
-      return grid((x, y) => {
-        const i = y * COLS + x;
-        return mag[i] >= cut ? S[dir[i]] : ' ';
-      });
-  }},
-  { n: 2, name: 'SHADE', run(lum) {
-      const R = '@%#*+=-:. ';
-      return grid((x, y) =>
-        R[Math.min(R.length - 1, Math.floor((1 - lum[y*COLS+x]) * R.length))]);
-  }},
-  { n: 3, name: 'BLOCKS', run(lum) {
-      const R = ' ░▒▓█';
+  { n: 1, name: 'BLOCKS', run(lum) {
+      const R = ' \u2591\u2592\u2593\u2588';
       return grid((x, y) =>
         R[Math.min(R.length - 1, Math.floor(lum[y*COLS+x] * R.length))]);
-  }},
-  { n: 4, name: 'DITHER', run(lum) {
-      // Floyd–Steinberg, one bit per cell
-      const b = Float32Array.from(lum);
-      const push = (x, y, e) => {
-        if (x < 0 || x >= COLS || y >= ROWS) return;
-        b[y*COLS+x] += e;
-      };
-      for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
-        const i = y*COLS+x, old = b[i], nw = old < 0.5 ? 0 : 1;
-        b[i] = nw;
-        const e = old - nw;
-        push(x+1, y,   e * 7/16);
-        push(x-1, y+1, e * 3/16);
-        push(x,   y+1, e * 5/16);
-        push(x+1, y+1, e * 1/16);
-      }
-      return grid((x, y) => b[y*COLS+x] < 0.5 ? ' ' : '█');
-  }},
-  { n: 5, name: 'CONTOUR', run(lum) {
-      // draw only where the image crosses a brightness band
-      const BANDS = 6;
-      const band = (v) => Math.floor(v * BANDS);
-      return grid((x, y) => {
-        const i = y*COLS+x, b = band(lum[i]);
-        const r = x + 1 < COLS && band(lum[i+1]) !== b;
-        const d = y + 1 < ROWS && band(lum[i+COLS]) !== b;
-        return r && d ? '+' : r ? '|' : d ? '_' : ' ';
-      });
-  }},
-  { n: 6, name: 'SCANLINE', run(lum) {
-      const R = '@%#*+=-:. ';
-      return grid((x, y) => y % 2
-        ? ' '
-        : R[Math.min(R.length-1, Math.floor((1 - lum[y*COLS+x]) * R.length))]);
-  }},
-  { n: 7, name: 'GHOST', run(lum) {
-      // edges in punctuation, deep shadow in blocks, the rest empty
-      const { mag, peak } = sobel(lum);
-      const cut = peak * 0.28;
-      return grid((x, y) => {
-        const i = y*COLS+x;
-        if (mag[i] >= cut) return '·';
-        return lum[i] > 0.82 ? '▓' : ' ';
-      });
   }}
 ];
 let filter = 0;
@@ -469,19 +408,6 @@ let filter = 0;
 function render(source, w, h) {
   return FILTERS[filter].run(sample(source, w, h));
 }
-
-FILTERS.forEach((f, idx) => {
-  const b = document.createElement('button');
-  b.className = 'filt' + (idx === filter ? ' on' : '');
-  b.textContent = f.n + ' ' + f.name;
-  b.onclick = () => {
-    filter = idx;
-    [...filterBar.children].forEach((c, i) =>
-      c.classList.toggle('on', i === idx));
-    if (lastFrame) { asciiArt = render(lastFrame, lastFrame.width, lastFrame.height); showAscii(); }
-  };
-  filterBar.appendChild(b);
-});
 
 let asciiArt = '', frozen = false;
 function showAscii() { if (live) live.textContent = asciiArt; }
@@ -682,7 +608,7 @@ function loadGallery() {
       cap.innerHTML = '<b></b><br><span></span>';
       cap.querySelector('b').textContent = it.who;
       cap.querySelector('span').textContent =
-        (it.btc ? 'btc ' + it.btc + ' · ' : '') + 'unix ' + it.unix;
+        it.note || ((it.btc ? 'BTC ' + it.btc + ' · ' : '') + 'unix ' + it.unix);
       card.appendChild(cap);
       gal.appendChild(card);
     }
