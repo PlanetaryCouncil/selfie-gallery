@@ -87,6 +87,14 @@
   }
   .viewer { max-width: 660px; }
   .filters { margin: 10px 0 2px; }
+  .declare {
+    display: flex; align-items: center; gap: 8px;
+    margin: 10px 0 2px; cursor: pointer;
+    color: var(--dim); letter-spacing: .5px;
+    user-select: none;
+  }
+  .declare input { accent-color: var(--green); width: 15px; height: 15px; cursor: pointer; }
+  .declare input:checked + span { color: var(--green); }
   button.filt {
     padding: 5px 10px; margin: 3px 5px 3px 0;
     color: var(--dim); border-color: var(--border);
@@ -217,12 +225,18 @@
     <button id="cam">OPEN CAMERA</button>
     <button id="save" disabled>SAVE .TXT</button>
     <button id="submit" class="warn" disabled>SUBMIT TO GALLERY</button>
+    <label class="declare">
+      <input type="checkbox" id="legal">
+      <span>my face is not illegal</span>
+    </label>
     <div id="camWrap" style="margin-top:12px"></div>
     <div class="note">
       The photograph never leaves your device &mdash; it is converted to
       characters in the browser and discarded. Only the text is submitted,
-      to the same board the handwritten signatures land on. Humans and
-      machines end up in the same alphabet.
+      to the same board the handwritten signatures land on. Every face is
+      public the moment it lands &mdash; no queue, no waiting on an operator.
+      The declaration is your consent record; the operator can still take a
+      face down. Humans and machines end up in the same alphabet.
     </div>
   </section>
 
@@ -329,6 +343,7 @@ const camWrap = document.getElementById('camWrap');
 const bCam = document.getElementById('cam');
 const bSave = document.getElementById('save');
 const bSubmit = document.getElementById('submit');
+const cLegal = document.getElementById('legal');
 let stream = null, video = null, live = null, lastFrame = null;
 
 // ─────────────── the viewfinder ───────────────
@@ -487,6 +502,15 @@ bSave.onclick = () => {
 const ENDPOINT = 'https://cockpit-1.tail151af.ts.net/api/selfies';
 
 bSubmit.onclick = async () => {
+  if (!cLegal.checked) {
+    bSubmit.textContent = 'TICK THE BOX FIRST';
+    cLegal.parentElement.style.color = 'var(--amber)';
+    setTimeout(() => {
+      bSubmit.textContent = 'SUBMIT TO GALLERY';
+      cLegal.parentElement.style.color = '';
+    }, 2000);
+    return;
+  }
   const who = (prompt('Name or handle for the caption:') || '').trim();
   if (!who) return;
   lastFrame = null;   // the image is gone before anything is sent
@@ -496,7 +520,8 @@ bSubmit.onclick = async () => {
     kind: 'ascii',
     filter: FILTERS[filter].name,
     stamp: { ...stampData, sra: sraRow.textContent },
-    art: asciiArt
+    art: asciiArt,
+    legal: true
   };
 
   bSubmit.disabled = true;
