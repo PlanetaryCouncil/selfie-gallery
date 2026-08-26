@@ -211,6 +211,23 @@
   .card .cap b { color: var(--amber); font-weight: 600; }
   .empty { color: var(--dim); padding: 20px 0; }
   footer { color: var(--dim); text-align: center; margin-top: 30px; line-height: 1.8; }
+  .stampAfter {
+    margin-top: 12px;
+    color: var(--dim);
+  }
+  .stampAfter > p { margin-bottom: 4px; }
+  .stampAfter summary {
+    cursor: pointer;
+    color: var(--cyan);
+    letter-spacing: .5px;
+    list-style: none;
+    display: inline;
+  }
+  .stampAfter summary::-webkit-details-marker,
+  .stampAfter summary::marker { display: none; content: ""; }
+  .stampAfter summary:hover { color: var(--green); }
+  .stampAfter details[open] summary { display: inline-block; margin-bottom: 10px; }
+  .stampAfter .rows { margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -228,24 +245,9 @@
     <a href="https://github.com/PlanetaryCouncil/useful-captcha">USEFUL CAPTCHA</a>
   </nav>
 
-  <!-- ─────────────── BLOCK TIMESTAMP ─────────────── -->
-  <section>
-    <h2>00 // TIMESTAMP</h2>
-    <p class="dim">
-      The moment you loaded this, pinned to three chains. Every selfie below
-      is stamped the same way &mdash; you cannot backdate a block hash.
-    </p>
-    <div id="stamp" class="rows" style="margin-top:12px"></div>
-    <div class="note">
-      <b style="color:var(--green)">SRA time</b> is Singularity Regulation
-      Authority authorised time &mdash; counted from
-      <span class="nowrap">12 March 2026, 17:00:00 UTC</span>.
-    </div>
-  </section>
-
   <!-- ─────────────── CAPTURE ─────────────── -->
   <section>
-    <h2>01 // TAKE ONE</h2>
+    <h2>00 // TAKE ONE</h2>
     <p class="dim">
       Real camera. Browser asks. Say no and the gallery still works.<br>
       The preview is already the artwork: a fixed 80 &times; 30 grid, live,
@@ -289,7 +291,7 @@
 
   <!-- ─────────────── GALLERY ─────────────── -->
   <section>
-    <h2>02 // THE GALLERY</h2>
+    <h2>01 // THE GALLERY</h2>
     <p class="dim">Everyone who said yes.</p>
     <div id="gallery" class="gallery"></div>
     <div id="galEmpty" class="empty"></div>
@@ -304,54 +306,91 @@
 
 <script>
 // ─────────────── block timestamp ───────────────
-const stamp = document.getElementById('stamp');
+// Fetched on load, shown only after you take a selfie — under the shot,
+// behind Read more. The landing view stays quiet.
 const stampData = { unix: Math.floor(Date.now() / 1000) };
-
-function row(label, value, cls) {
-  const d = document.createElement('div');
-  const a = document.createElement('span');
-  const b = document.createElement('span');
-  a.textContent = label;
-  b.textContent = value;
-  if (cls) b.style.color = `var(--${cls})`;
-  d.append(a, b);
-  stamp.appendChild(d);
-  return b;
-}
-
-row('UNIX', stampData.unix, 'amber');
-const isoRow = row('ISO (UTC)', new Date(stampData.unix * 1000).toISOString(), 'text');
-isoRow.classList.add('nowrap');
-
-// ─── SRA — Singularity Regulation Authority authorised time ───
-// epoch: 12 March 2026 17:00:00 UTC
 const SRA_EPOCH = Date.UTC(2026, 2, 12, 17, 0, 0);
-const sraRow = row('SRA', '…', 'green');
-sraRow.classList.add('nowrap');
+let stampEls = {};
+let sraTicking = false;
 
-function tickSRA() {
-  let ms = Date.now() - SRA_EPOCH;
+function formatSRA(now) {
+  let ms = now - SRA_EPOCH;
   const sign = ms < 0 ? '-' : '+';
   ms = Math.abs(ms);
   const d = Math.floor(ms / 86400000); ms -= d * 86400000;
   const h = Math.floor(ms / 3600000);  ms -= h * 3600000;
   const m = Math.floor(ms / 60000);    ms -= m * 60000;
   const s = Math.floor(ms / 1000);     ms -= s * 1000;
-  sraRow.textContent =
-    `${sign}${d}d ${h}h ${String(m).padStart(2,'0')}m ` +
-    `${String(s).padStart(2,'0')}s ${String(ms).padStart(3,'0')}ms`;
+  return `${sign}${d}d ${h}h ${String(m).padStart(2,'0')}m ` +
+         `${String(s).padStart(2,'0')}s ${String(ms).padStart(3,'0')}ms`;
+}
+
+function tickSRA() {
+  if (stampEls.sra) stampEls.sra.textContent = formatSRA(Date.now());
   requestAnimationFrame(tickSRA);
 }
-tickSRA();
 
-const btcRow = row('BTC  #', 'fetching…');
-const btcHash = row('BTC  hash', '…');
-const ethRow = row('ETH  #', 'fetching…');
-const ethHash = row('ETH  hash', '…');
-const solRow = row('SOL  #', 'fetching…');
-const solHash = row('SOL  hash', '…');
+function paintStamp() {
+  const box = document.getElementById('stamp');
+  if (!box) return;
+  box.innerHTML = '';
+  stampEls = {};
 
-const fail = (el) => { el.textContent = 'unreachable'; el.style.color = 'var(--red)'; };
+  function row(label, value, cls, key) {
+    const d = document.createElement('div');
+    const a = document.createElement('span');
+    const b = document.createElement('span');
+    a.textContent = label;
+    b.textContent = value;
+    if (cls) b.style.color = `var(--${cls})`;
+    d.append(a, b);
+    box.appendChild(d);
+    if (key) stampEls[key] = b;
+    return b;
+  }
+
+  function chain(name, data, failed, height, hash, hKey, hashKey) {
+    if (data) {
+      row(name + '  #', height, 'green', hKey);
+      row(name + '  hash', hash, null, hashKey);
+    } else if (failed) {
+      row(name + '  #', 'unreachable', 'red', hKey);
+      row(name + '  hash', 'unreachable', 'red', hashKey);
+    } else {
+      row(name + '  #', 'fetching…', null, hKey);
+      row(name + '  hash', '…', null, hashKey);
+    }
+  }
+
+  row('UNIX', stampData.unix, 'amber', 'unix');
+  row('ISO (UTC)', new Date(stampData.unix * 1000).toISOString(), 'text', 'iso')
+    .classList.add('nowrap');
+  row('SRA', formatSRA(Date.now()), 'green', 'sra')
+    .classList.add('nowrap');
+
+  chain('BTC', stampData.btc, stampData.btcFailed,
+        stampData.btc && stampData.btc.height,
+        stampData.btc && stampData.btc.hash, 'btc', 'btcHash');
+  chain('ETH', stampData.eth, stampData.ethFailed,
+        stampData.eth && stampData.eth.height,
+        stampData.eth && stampData.eth.hash, 'eth', 'ethHash');
+  chain('SOL', stampData.sol, stampData.solFailed,
+        stampData.sol && stampData.sol.slot,
+        stampData.sol && stampData.sol.blockhash, 'sol', 'solHash');
+
+  if (!sraTicking) { sraTicking = true; tickSRA(); }
+}
+
+function setStamp(key, text, cls) {
+  const el = stampEls[key];
+  if (!el) return;
+  el.textContent = text;
+  if (cls) el.style.color = `var(--${cls})`;
+}
+
+function fail(key) {
+  setStamp(key, 'unreachable', 'red');
+}
 
 // BTC — mempool.space, CORS: *
 Promise.all([
@@ -359,18 +398,18 @@ Promise.all([
   fetch('https://mempool.space/api/blocks/tip/hash').then(r => r.text())
 ]).then(([height, hash]) => {
     stampData.btc = { height: +height, hash };
-    btcRow.textContent = height; btcRow.style.color = 'var(--green)';
-    btcHash.textContent = hash;
-  }).catch(() => { fail(btcRow); fail(btcHash); });
+    setStamp('btc', height, 'green');
+    setStamp('btcHash', hash);
+  }).catch(() => { stampData.btcFailed = true; fail('btc'); fail('btcHash'); });
 
 // ETH
 fetch('https://api.blockcypher.com/v1/eth/main')
   .then(r => r.json())
   .then(j => {
     stampData.eth = { height: j.height, hash: '0x' + j.hash };
-    ethRow.textContent = j.height; ethRow.style.color = 'var(--green)';
-    ethHash.textContent = '0x' + j.hash;
-  }).catch(() => { fail(ethRow); fail(ethHash); });
+    setStamp('eth', j.height, 'green');
+    setStamp('ethHash', '0x' + j.hash);
+  }).catch(() => { stampData.ethFailed = true; fail('eth'); fail('ethHash'); });
 
 // SOL
 fetch('https://solana-rpc.publicnode.com', {
@@ -381,9 +420,52 @@ fetch('https://solana-rpc.publicnode.com', {
   .then(j => {
     const slot = j.result.context.slot;
     stampData.sol = { slot, blockhash: j.result.value.blockhash };
-    solRow.textContent = slot; solRow.style.color = 'var(--green)';
-    solHash.textContent = j.result.value.blockhash;
-  }).catch(() => { fail(solRow); fail(solHash); });
+    setStamp('sol', slot, 'green');
+    setStamp('solHash', j.result.value.blockhash);
+  }).catch(() => { stampData.solFailed = true; fail('sol'); fail('solHash'); });
+
+function showStampUnderSelfie() {
+  stampData.unix = Math.floor(Date.now() / 1000);
+  const viewer = document.querySelector('.viewer');
+  if (!viewer) return;
+  const old = document.getElementById('stampAfter');
+  if (old) old.remove();
+
+  const wrap = document.createElement('div');
+  wrap.id = 'stampAfter';
+  wrap.className = 'stampAfter';
+
+  const lead = document.createElement('p');
+  lead.textContent = 'Each selfie is timestamped with our timestamp solution.';
+
+  const det = document.createElement('details');
+  const sum = document.createElement('summary');
+  sum.textContent = 'Read more';
+  det.addEventListener('toggle', () => {
+    sum.textContent = det.open ? 'Read less' : 'Read more';
+  });
+
+  const intro = document.createElement('p');
+  intro.className = 'dim';
+  intro.textContent =
+    'This selfie, pinned to three chains. You cannot backdate a block hash.';
+
+  const rows = document.createElement('div');
+  rows.id = 'stamp';
+  rows.className = 'rows';
+
+  const note = document.createElement('div');
+  note.className = 'note';
+  note.innerHTML =
+    '<b style="color:var(--green)">SRA time</b> is Singularity Regulation ' +
+    'Authority authorised time &mdash; counted from ' +
+    '<span class="nowrap">12 March 2026, 17:00:00 UTC</span>.';
+
+  det.append(sum, intro, rows, note);
+  wrap.append(lead, det);
+  viewer.appendChild(wrap);
+  paintStamp();
+}
 
 // ─────────────── camera ───────────────
 const camWrap = document.getElementById('camWrap');
@@ -546,6 +628,7 @@ function capture() {
   video = null;
   const sw = document.querySelector('.shutterWrap');
   if (sw) sw.remove();
+  showStampUnderSelfie();
   bSave.disabled = false;
   bSubmit.disabled = false;
   // The way back. Visible from the moment there is something to retake.
@@ -594,7 +677,7 @@ bSubmit.onclick = async () => {
     who,
     kind: 'ascii',
     filter: FILTERS[filter].name,
-    stamp: { ...stampData, sra: sraRow.textContent },
+    stamp: { ...stampData, sra: formatSRA(Date.now()) },
     art: asciiArt,
     legal: true
   };
