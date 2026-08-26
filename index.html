@@ -212,7 +212,7 @@
   .empty { color: var(--dim); padding: 20px 0; }
   footer { color: var(--dim); text-align: center; margin-top: 30px; line-height: 1.8; }
   .stampAfter {
-    margin-top: 12px;
+    margin: 8px 0 14px;
     color: var(--dim);
   }
   .stampAfter > p { margin-bottom: 4px; }
@@ -245,9 +245,18 @@
     <a href="https://github.com/PlanetaryCouncil/useful-captcha">USEFUL CAPTCHA</a>
   </nav>
 
+  <!-- ─────────────── GALLERY ─────────────── -->
+  <section>
+    <h2>00 // THE GALLERY</h2>
+    <p class="dim">Everyone who said yes.</p>
+    <div id="stampGallery"></div>
+    <div id="gallery" class="gallery"></div>
+    <div id="galEmpty" class="empty"></div>
+  </section>
+
   <!-- ─────────────── CAPTURE ─────────────── -->
   <section>
-    <h2>00 // TAKE ONE</h2>
+    <h2>01 // TAKE ONE</h2>
     <p class="dim">
       Real camera. Browser asks. Say no and the gallery still works.<br>
       The preview is already the artwork: a fixed 80 &times; 30 grid, live,
@@ -289,28 +298,17 @@
     </details>
   </section>
 
-  <!-- ─────────────── GALLERY ─────────────── -->
-  <section>
-    <h2>01 // THE GALLERY</h2>
-    <p class="dim">Everyone who said yes.</p>
-    <div id="gallery" class="gallery"></div>
-    <div id="galEmpty" class="empty"></div>
-  </section>
-
   <footer>
-    <a href="https://github.com/PlanetaryCouncil/selfie-gallery">PlanetaryCouncil/selfie-gallery</a><br>
-    stores nothing it does not show you
+    <a href="https://github.com/PlanetaryCouncil/selfie-gallery">PlanetaryCouncil/selfie-gallery</a>
   </footer>
 
 </main>
 
 <script>
 // ─────────────── block timestamp ───────────────
-// Fetched on load, shown only after you take a selfie — under the shot,
-// behind Read more. The landing view stays quiet.
+// One line on the gallery. Chains behind Read more. Same note under a shot.
 const stampData = { unix: Math.floor(Date.now() / 1000) };
 const SRA_EPOCH = Date.UTC(2026, 2, 12, 17, 0, 0);
-let stampEls = {};
 let sraTicking = false;
 
 function formatSRA(now) {
@@ -326,15 +324,26 @@ function formatSRA(now) {
 }
 
 function tickSRA() {
-  if (stampEls.sra) stampEls.sra.textContent = formatSRA(Date.now());
+  document.querySelectorAll('[data-stamp="sra"]').forEach(el => {
+    el.textContent = formatSRA(Date.now());
+  });
   requestAnimationFrame(tickSRA);
 }
 
-function paintStamp() {
-  const box = document.getElementById('stamp');
+function setStamp(key, text, cls) {
+  document.querySelectorAll(`[data-stamp="${key}"]`).forEach(el => {
+    el.textContent = text;
+    if (cls) el.style.color = `var(--${cls})`;
+  });
+}
+
+function fail(key) {
+  setStamp(key, 'unreachable', 'red');
+}
+
+function paintStamp(box) {
   if (!box) return;
   box.innerHTML = '';
-  stampEls = {};
 
   function row(label, value, cls, key) {
     const d = document.createElement('div');
@@ -343,9 +352,9 @@ function paintStamp() {
     a.textContent = label;
     b.textContent = value;
     if (cls) b.style.color = `var(--${cls})`;
+    if (key) b.dataset.stamp = key;
     d.append(a, b);
     box.appendChild(d);
-    if (key) stampEls[key] = b;
     return b;
   }
 
@@ -381,15 +390,40 @@ function paintStamp() {
   if (!sraTicking) { sraTicking = true; tickSRA(); }
 }
 
-function setStamp(key, text, cls) {
-  const el = stampEls[key];
-  if (!el) return;
-  el.textContent = text;
-  if (cls) el.style.color = `var(--${cls})`;
-}
+function makeStampNote() {
+  const wrap = document.createElement('div');
+  wrap.className = 'stampAfter';
 
-function fail(key) {
-  setStamp(key, 'unreachable', 'red');
+  const lead = document.createElement('p');
+  lead.textContent = 'Each selfie is timestamped with our timestamp solution.';
+
+  const det = document.createElement('details');
+  const sum = document.createElement('summary');
+  sum.textContent = 'Read more';
+
+  const intro = document.createElement('p');
+  intro.className = 'dim';
+  intro.textContent =
+    'Pinned to three chains at the moment it is taken. You cannot backdate a block hash.';
+
+  const rows = document.createElement('div');
+  rows.className = 'rows stampRows';
+
+  const note = document.createElement('div');
+  note.className = 'note';
+  note.innerHTML =
+    '<b style="color:var(--green)">SRA time</b> is Singularity Regulation ' +
+    'Authority authorised time &mdash; counted from ' +
+    '<span class="nowrap">12 March 2026, 17:00:00 UTC</span>.';
+
+  det.addEventListener('toggle', () => {
+    sum.textContent = det.open ? 'Read less' : 'Read more';
+    if (det.open) paintStamp(rows);
+  });
+
+  det.append(sum, intro, rows, note);
+  wrap.append(lead, det);
+  return wrap;
 }
 
 // BTC — mempool.space, CORS: *
@@ -426,46 +460,19 @@ fetch('https://solana-rpc.publicnode.com', {
 
 function showStampUnderSelfie() {
   stampData.unix = Math.floor(Date.now() / 1000);
+  setStamp('unix', stampData.unix, 'amber');
+  setStamp('iso', new Date(stampData.unix * 1000).toISOString());
   const viewer = document.querySelector('.viewer');
   if (!viewer) return;
   const old = document.getElementById('stampAfter');
   if (old) old.remove();
-
-  const wrap = document.createElement('div');
+  const wrap = makeStampNote();
   wrap.id = 'stampAfter';
-  wrap.className = 'stampAfter';
-
-  const lead = document.createElement('p');
-  lead.textContent = 'Each selfie is timestamped with our timestamp solution.';
-
-  const det = document.createElement('details');
-  const sum = document.createElement('summary');
-  sum.textContent = 'Read more';
-  det.addEventListener('toggle', () => {
-    sum.textContent = det.open ? 'Read less' : 'Read more';
-  });
-
-  const intro = document.createElement('p');
-  intro.className = 'dim';
-  intro.textContent =
-    'This selfie, pinned to three chains. You cannot backdate a block hash.';
-
-  const rows = document.createElement('div');
-  rows.id = 'stamp';
-  rows.className = 'rows';
-
-  const note = document.createElement('div');
-  note.className = 'note';
-  note.innerHTML =
-    '<b style="color:var(--green)">SRA time</b> is Singularity Regulation ' +
-    'Authority authorised time &mdash; counted from ' +
-    '<span class="nowrap">12 March 2026, 17:00:00 UTC</span>.';
-
-  det.append(sum, intro, rows, note);
-  wrap.append(lead, det);
   viewer.appendChild(wrap);
-  paintStamp();
 }
+
+const stampGallery = document.getElementById('stampGallery');
+if (stampGallery) stampGallery.appendChild(makeStampNote());
 
 // ─────────────── camera ───────────────
 const camWrap = document.getElementById('camWrap');
@@ -750,55 +757,73 @@ function normalise(it) {
   return it;
 }
 
-function loadGallery() {
-  gal.innerHTML = ''; galEmpty.textContent = '';
-  // the seeded machine self-portraits, plus everyone who said yes on the board
-  Promise.all([
-    fetch('gallery/manifest.json', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : []).catch(() => []),
-    fetch(ENDPOINT, { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : []).catch(() => [])
-  ])
-  .then(([seeds, live]) => {
-    const items = [...live.map(normalise), ...seeds];
-    if (!items.length) { galEmpty.textContent = 'nobody yet. be first.'; return; }
-    for (const it of items) {
-      const card = document.createElement('div');
-      card.className = 'card';
-      if (it.kind === 'ascii') {
-        card.classList.add('ascii');
-        const pre = document.createElement('pre');
-        const inner = document.createElement('span');
-        inner.textContent = it.art;
-        pre.appendChild(inner);
-        card.appendChild(pre);
-        card.onclick = () => openBox(it);
-        // scale the art down so the whole width fits the card
-        requestAnimationFrame(() => {
-          const avail = pre.clientWidth - 16;
-          const scale = Math.min(1, avail / inner.scrollWidth);
-          inner.style.transform = `scale(${scale})`;
-        });
-      } else {
-        const img = document.createElement('img');
-        img.src = it.url || ('gallery/' + it.file);
-        img.alt = it.who;
-        img.loading = 'lazy';
-        card.appendChild(img);
-        card.style.cursor = 'zoom-in';
-        card.onclick = () => openBox(it);
-      }
-      const cap = document.createElement('div');
-      cap.className = 'cap';
-      cap.innerHTML = '<b></b><br><span></span>';
-      cap.querySelector('b').textContent = it.who || 'anonymous';
-      cap.querySelector('span').textContent =
-        it.note || [it.btc ? 'BTC ' + it.btc : null,
-                    it.unix ? 'unix ' + it.unix : null].filter(Boolean).join(' · ');
-      card.appendChild(cap);
-      gal.appendChild(card);
+function renderGallery(items) {
+  gal.innerHTML = '';
+  galEmpty.textContent = '';
+  if (!items.length) { galEmpty.textContent = 'nobody yet. be first.'; return; }
+  for (const it of items) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    if (it.kind === 'ascii') {
+      card.classList.add('ascii');
+      const pre = document.createElement('pre');
+      const inner = document.createElement('span');
+      inner.textContent = it.art;
+      pre.appendChild(inner);
+      card.appendChild(pre);
+      card.onclick = () => openBox(it);
+      requestAnimationFrame(() => {
+        const avail = pre.clientWidth - 16;
+        const scale = Math.min(1, avail / inner.scrollWidth);
+        inner.style.transform = `scale(${scale})`;
+      });
+    } else {
+      const img = document.createElement('img');
+      img.src = it.url || ('gallery/' + it.file);
+      img.alt = it.who;
+      img.loading = 'lazy';
+      card.appendChild(img);
+      card.style.cursor = 'zoom-in';
+      card.onclick = () => openBox(it);
     }
-  });
+    const cap = document.createElement('div');
+    cap.className = 'cap';
+    cap.innerHTML = '<b></b><br><span></span>';
+    cap.querySelector('b').textContent = it.who || 'anonymous';
+    cap.querySelector('span').textContent =
+      it.note || [it.btc ? 'BTC ' + it.btc : null,
+                  it.unix ? 'unix ' + it.unix : null].filter(Boolean).join(' · ');
+    card.appendChild(cap);
+    gal.appendChild(card);
+  }
+}
+
+function timedJson(url, ms) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { cache: 'no-store', signal: ctrl.signal })
+    .then(r => r.ok ? r.json() : [])
+    .catch(() => [])
+    .finally(() => clearTimeout(t));
+}
+
+let galGen = 0;
+function loadGallery() {
+  const gen = ++galGen;
+  let seeds = [], live = [];
+  const paint = () => {
+    if (gen !== galGen) return;
+    const items = [...(Array.isArray(live) ? live.map(normalise) : []),
+                   ...(Array.isArray(seeds) ? seeds : [])];
+    renderGallery(items);
+  };
+  // Seeds first so the board hanging on Tailscale cannot blank the gallery.
+  fetch('gallery/manifest.json', { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : [])
+    .catch(() => [])
+    .then(j => { seeds = j; paint(); });
+  timedJson(ENDPOINT, 4000)
+    .then(j => { live = j; paint(); });
 }
 loadGallery();
 </script>
