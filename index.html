@@ -813,8 +813,17 @@ function loadGallery() {
   let seeds = [], live = [];
   const paint = () => {
     if (gen !== galGen) return;
-    const items = [...(Array.isArray(live) ? live.map(normalise) : []),
-                   ...(Array.isArray(seeds) ? seeds : [])];
+    const seen = new Set();
+    const items = [];
+    for (const it of [
+      ...(Array.isArray(live) ? live.map(normalise) : []),
+      ...(Array.isArray(seeds) ? seeds : []),
+    ]) {
+      const key = (it.who || '') + '\n' + (it.art || it.file || '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push(it);
+    }
     renderGallery(items);
   };
   // Seeds first so the board hanging on Tailscale cannot blank the gallery.
