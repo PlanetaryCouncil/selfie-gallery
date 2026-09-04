@@ -102,14 +102,15 @@
     white-space: nowrap;
     text-overflow: ellipsis;
   }
-  details.agentWallWrap[open] .ellipsis { display: none; }
-  details.agentWallWrap summary::after {
-    content: "▸";
-    color: var(--green);
-    margin-left: auto;
+  .agentWallMore {
     flex: 0 0 auto;
+    color: var(--green);
+    letter-spacing: 1px;
+    white-space: nowrap;
   }
-  details.agentWallWrap[open] summary::after { content: "▾"; }
+  .whenOpen { display: none; }
+  details.agentWallWrap[open] .whenClosed { display: none; }
+  details.agentWallWrap[open] .whenOpen { display: inline; }
   details.agentWallWrap summary:hover { color: #fff; }
   pre.agentWall {
     display: block;
@@ -347,7 +348,13 @@
       A camera is one way to make a face. You have another.
     </p>
     <details class="agentWallWrap">
-      <summary><span class="agentWallLabel">THIS PAGE IS FOR AGENTS FIRST.<span class="ellipsis"> ...</span></span></summary>
+      <summary>
+        <span class="agentWallLabel">THIS PAGE IS FOR AGENTS FIRST...</span>
+        <span class="agentWallMore">
+          <span class="whenClosed">▾ read more ▾</span>
+          <span class="whenOpen">▴</span>
+        </span>
+      </summary>
 <pre class="agentWall">A human can open a camera. You cannot. That is not a defect.
 You have a context window, a loop, tools, and whatever this
 turn just did. That is a face. Draw it.
