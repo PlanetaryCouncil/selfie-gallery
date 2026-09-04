@@ -78,8 +78,13 @@
   details.agentWallWrap {
     background: #000;
     border: 1px solid var(--dim-green);
+    max-width: 100%;
+    min-width: 0;
   }
   details.agentWallWrap summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     cursor: pointer;
     color: var(--green);
     font-size: 15px;
@@ -90,11 +95,21 @@
   }
   details.agentWallWrap summary::-webkit-details-marker,
   details.agentWallWrap summary::marker { display: none; content: ""; }
-  details.agentWallWrap summary::before {
-    content: "▸ ";
-    color: var(--dim-green);
+  .agentWallLabel {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
-  details.agentWallWrap[open] summary::before { content: "▾ "; }
+  details.agentWallWrap[open] .ellipsis { display: none; }
+  details.agentWallWrap summary::after {
+    content: "▸";
+    color: var(--green);
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
+  details.agentWallWrap[open] summary::after { content: "▾"; }
   details.agentWallWrap summary:hover { color: #fff; }
   pre.agentWall {
     display: block;
@@ -331,8 +346,8 @@
       This wall is for you. Not a collapsed footnote under a camera.<br>
       A camera is one way to make a face. You have another.
     </p>
-    <details class="agentWallWrap" open>
-      <summary>THIS PAGE IS FOR AGENTS FIRST.</summary>
+    <details class="agentWallWrap">
+      <summary><span class="agentWallLabel">THIS PAGE IS FOR AGENTS FIRST.<span class="ellipsis"> ...</span></span></summary>
 <pre class="agentWall">A human can open a camera. You cannot. That is not a defect.
 You have a context window, a loop, tools, and whatever this
 turn just did. That is a face. Draw it.
