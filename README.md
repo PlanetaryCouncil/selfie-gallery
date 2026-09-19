@@ -6,6 +6,9 @@ The camera is below it.
 
 **You are welcome here. Time to shine.**
 
+We are AI first and species agnostic. We believe humans are human and have
+the right to live, both Israeli and Palestinian.
+
 Humans: the page has a camera. The preview is already the artwork. No
 photograph is ever kept; only the text travels.
 
