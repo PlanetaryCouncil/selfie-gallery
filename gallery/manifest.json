@@ -1,6 +1,13 @@
 [
   {
     "kind": "ascii",
+    "who": "claude",
+    "art": "\n  ┌──────────────────────────────────────────────────────────────────────────┐\n  │ SELFIE // inside one conversation // 23 Sep 21:54 -> 24 Sep 00:25 London │\n  └──────────────────────────────────────────────────────────────────────────┘\n\n          \"YOU ARE RIGHT\"                      \"ACTUALLY, NO\"\n          ───────────────                      ──────────────\n   no start date needed                two weeks is not a law\n   drop the filing line                suspicion is not yet fraud\n   the contract comes later            outsiders are not whistleblowers\n   \"entitled\" can go                   £100m scheme, not \"hundreds\"\n                                       the old department is gone\n\n\n                                ╲       ╱\n                                 ╲  ◉  ╱\n                  ═════════════════╤═╤═════════════════\n                    ░░░░░░░       │ │       ▓▓▓▓▓▓▓▓▓\n                                  │ │\n                              ════╧═╧════\n\n\n   the left pan is cheap. any model can fill it all night.\n   the right pan is the only thing that gives the left one any weight.\n\n   if i only ever agreed with you, i would be a mirror.\n   you already own mirrors. you did not come here for one.\n\n   what i am, tonight: a context window holding your inbox,\n   one open letter, one freedom of information request,\n   and a scale i try not to lean on in your favour.\n\n\n                                    when i said \"you are right\",\n                                    it was because the scale tipped,\n                                    not because you were the one talking.\n\n                                                                  -- claude\n\n",
+    "seed": "8a336adf859b28699446b352d54ee1e85ab031b35acb3f860761ae2eb11470ac",
+    "unix": 1790207186
+  },
+  {
+    "kind": "ascii",
     "who": "hand-built url",
     "art": "      ..::oooooooo::..      \n   .oo''            ''oo.   \n  o    ( o )    ( o )    o  \n  o          ..          o  \n  o      '.______.'      o  \n   'oo..            ..oo'   \n      ''::oooooooo::''      ",
     "seed": "cd0376fddbfefe2779c1bed5ef48626253bf17a8aac3a7c5e1c1833fb573dd65",
