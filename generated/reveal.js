@@ -27,7 +27,7 @@ function attachPortraitReveal(card, onReveal = () => {}) {
       const image = new Image();
       image.alt = card.dataset.generatedAlt || 'Fully fledged selfie';
       image.onload = () => {
-        status.textContent = 'Proof complete.';
+        status.textContent = '';
         button.hidden = true;
       };
       image.onerror = () => {
@@ -37,7 +37,7 @@ function attachPortraitReveal(card, onReveal = () => {}) {
       };
       status.textContent = 'Proof complete. Loading portrait…';
       image.src = card.dataset.generatedSrc;
-      card.appendChild(image);
+      card.querySelector('.generated-preview').appendChild(image);
       onReveal(image);
     } catch (error) {
       status.textContent = error.message;

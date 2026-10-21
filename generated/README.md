@@ -5,8 +5,9 @@ and hosted here on GitHub; the ASCII wall remains unchanged.
 
 Each generated portrait sits beside its ASCII entry in the
 [gallery](https://planetarycouncil.github.io/selfie-gallery/#gallery-sec).
-ASCII is visible immediately; the **secure ultra** panel reveals the fully
-fledged interpretation after PoW. There are no original-image links in the UI.
+ASCII uses the same compact tile as every other selfie. A small Reveal button
+in its caption unlocks a neighboring tile of the same size for the fully fledged
+interpretation. There is no oversized frame or original-image link in the UI.
 Its Reveal button solves a 13-bit SHA-256 puzzle in a local worker, checks the
 answer, waits at least one second, and loads the image from GitHub Pages.
 It works even when the board is offline. The board also offers a reveal at

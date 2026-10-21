@@ -318,14 +318,13 @@
   #lightbox .cap { text-align: center; color: var(--amber); margin-top: 14px; }
   .card .cap { padding: 6px 8px; color: var(--dim); border-top: 1px solid var(--border); }
   .card .cap b { color: var(--amber); font-weight: 600; }
-  .card.paired { grid-column: 1 / -1; display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); cursor: default; }
-  .paired .ascii-pane, .paired .generated-pane { min-width: 0; }
-  .paired .generated-pane { border-left: 1px solid var(--border); padding: 10px; }
-  .paired .pane-label { padding: 10px; margin: 0; color: var(--green); }
-  .paired .cap { grid-column: 1 / -1; }
-  .paired img { aspect-ratio: auto; object-fit: contain; cursor: zoom-in; }
-  .paired button { max-width: 100%; margin: 12px 0; letter-spacing: 0; }
+  .selfie-pair { display: contents; }
+  .generated-pane[hidden] { display: none; }
+  .generated-pane img { height: 150px; aspect-ratio: auto; object-fit: cover; }
+  .card .generated-reveal { font-size: 9px; padding: 3px 6px; margin: 5px 0 0;
+    letter-spacing: 0; }
+  .card .generated-status { font-size: 9px; margin: 3px 0 0; }
+  .card .generated-status:empty { display: none; }
   .empty { color: var(--dim); padding: 20px 0; }
   footer { color: var(--dim); text-align: center; margin-top: 30px; line-height: 1.8; }
   .stampAfter {
@@ -504,7 +503,7 @@ The board is under that. Look at it. Then hang yours.
 
 </main>
 
-<script src="generated/reveal.js?v=paired-1"></script>
+<script src="generated/reveal.js?v=compact-1"></script>
 <script>
 // ─────────────── block timestamp ───────────────
 // One line on the gallery. Chains behind Read more. Same note under a shot.
@@ -982,42 +981,12 @@ function renderGallery(items, portraits = {}) {
       const inner = document.createElement('span');
       inner.textContent = it.art;
       pre.appendChild(inner);
-      let pane = card;
-      if (portrait) {
-        card.classList.add('paired');
-        card.id = 'selfie-' + it.seed;
-        pane = document.createElement('div');
-        pane.className = 'ascii-pane';
-        const label = document.createElement('p');
-        label.className = 'pane-label'; label.textContent = 'ASCII';
-        pane.appendChild(label); card.appendChild(pane);
-      }
-      pane.appendChild(pre);
-      pane.onclick = () => openBox(it);
-      if (portrait) {
-        const full = document.createElement('div');
-        full.className = 'generated-pane';
-        full.dataset.generatedSrc = portrait.src;
-        full.dataset.generatedAlt = portrait.alt || it.who;
-        const label = document.createElement('p');
-        label.className = 'pane-label'; label.textContent = 'secure ultra';
-        const button = document.createElement('button');
-        button.className = 'generated-reveal'; button.type = 'button';
-        button.textContent = 'REVEAL FULLY FLEDGED · ~1 SECOND';
-        const status = document.createElement('p');
-        status.className = 'generated-status dim';
-        status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
-        full.append(label, button, status); card.appendChild(full);
-        attachPortraitReveal(full, image => {
-          image.onclick = () => openBox({kind: 'photo', url: image.src, who: it.who});
-        });
-        pairedCards.set(it.seed, card);
-      }
+      card.appendChild(pre);
+      card.onclick = () => openBox(it);
       requestAnimationFrame(() => {
         const avail = pre.clientWidth - 16;
         const scale = Math.min(1, avail / inner.scrollWidth);
         inner.style.transform = `scale(${scale})`;
-        if (portrait) pre.style.height = (inner.scrollHeight * scale + 16) + 'px';
       });
     } else {
       const img = document.createElement('img');
@@ -1036,7 +1005,35 @@ function renderGallery(items, portraits = {}) {
       it.note || [it.btc ? 'BTC ' + it.btc : null,
                   it.unix ? 'unix ' + it.unix : null].filter(Boolean).join(' · ');
     card.appendChild(cap);
-    gal.appendChild(card);
+    if (portrait) {
+      const pair = document.createElement('div');
+      pair.className = 'selfie-pair'; pair.id = 'selfie-' + it.seed;
+      pair.dataset.generatedSrc = portrait.src;
+      pair.dataset.generatedAlt = portrait.alt || it.who;
+      const full = document.createElement('div');
+      full.className = 'card generated-pane'; full.hidden = true;
+      const preview = document.createElement('div');
+      preview.className = 'generated-preview'; full.appendChild(preview);
+      const fullCap = document.createElement('div'); fullCap.className = 'cap';
+      const name = document.createElement('b'); name.textContent = it.who || 'anonymous';
+      const mode = document.createElement('div'); mode.textContent = 'fully fledged · secure ultra';
+      fullCap.append(name, mode); full.appendChild(fullCap);
+      const button = document.createElement('button');
+      button.className = 'generated-reveal'; button.type = 'button';
+      button.textContent = 'Reveal'; button.title = 'Fully fledged · secure ultra';
+      button.addEventListener('click', event => event.stopPropagation());
+      const status = document.createElement('p'); status.className = 'generated-status';
+      status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+      cap.append(document.createElement('br'), button, status);
+      pair.append(card, full);
+      attachPortraitReveal(pair, image => {
+        image.addEventListener('load', () => { full.hidden = false; });
+        image.onclick = () => openBox({kind: 'photo', url: image.src, who: it.who});
+      });
+      pairedCards.set(it.seed, pair); gal.appendChild(pair);
+    } else {
+      gal.appendChild(card);
+    }
   }
 }
 
