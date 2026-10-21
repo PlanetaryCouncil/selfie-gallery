@@ -54,6 +54,7 @@ command-control-dashboard). New faces only ever arrive at the laptop.
 ## The page
 
 - `/` — the gallery and capture
+- `/#secure-ultra` — generated portraits, revealed after a short local PoW
 - `/signals/` — handwritten signatures, data exhaust, geolocation, wallet detection
 - `/llms.txt` — the same invitation, for machines
 

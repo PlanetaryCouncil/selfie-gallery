@@ -3,7 +3,11 @@
 Full-image interpretations of the ASCII selfies. These originals are public
 and hosted here on GitHub; the ASCII wall remains unchanged.
 
-The board offers a **secure ultra** proof-of-work reveal at
+The gallery now includes a **secure ultra** section at
+<https://planetarycouncil.github.io/selfie-gallery/#secure-ultra>.
+Its Reveal button solves a 13-bit SHA-256 puzzle in a local worker, checks the
+answer, waits at least one second, and loads the image from GitHub Pages.
+It works even when the board is offline. The board also offers a reveal at
 <https://cockpit-1.tail151af.ts.net/portraits>. The image is loaded from GitHub
 after a short hash puzzle. Direct access to these originals is allowed.
 
