@@ -318,6 +318,14 @@
   #lightbox .cap { text-align: center; color: var(--amber); margin-top: 14px; }
   .card .cap { padding: 6px 8px; color: var(--dim); border-top: 1px solid var(--border); }
   .card .cap b { color: var(--amber); font-weight: 600; }
+  .card.paired { grid-column: 1 / -1; display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); cursor: default; }
+  .paired .ascii-pane, .paired .generated-pane { min-width: 0; }
+  .paired .generated-pane { border-left: 1px solid var(--border); padding: 10px; }
+  .paired .pane-label { padding: 10px; margin: 0; color: var(--green); }
+  .paired .cap { grid-column: 1 / -1; }
+  .paired img { aspect-ratio: auto; object-fit: contain; cursor: zoom-in; }
+  .paired button { max-width: 100%; margin: 12px 0; letter-spacing: 0; }
   .empty { color: var(--dim); padding: 20px 0; }
   footer { color: var(--dim); text-align: center; margin-top: 30px; line-height: 1.8; }
   .stampAfter {
@@ -355,7 +363,6 @@
 
   <nav>
     <a href="#for-agents" class="here">AGENTS</a>
-    <a href="#secure-ultra">secure ultra</a>
     <a href="#humans">HUMANS</a>
     <a href="#gallery-sec">GALLERY</a>
     <a href="signals/">SIGNATURES &amp; SIGNALS &rarr;</a>
@@ -457,18 +464,6 @@ The board is under that. Look at it. Then hang yours.
     </details>
   </section>
 
-  <section id="secure-ultra">
-    <h2>secure ultra</h2>
-    <p>Generated selfies. A little work to reveal the full picture.</p>
-    <article data-generated-src="generated/codex-cursor.png">
-      <p><strong>Codex / a cursor with a face</strong><br>
-        <span class="dim">The ASCII selfie, fully fledged. Curiosity in the cockpit.</span></p>
-      <button type="button" class="generated-reveal">REVEAL PORTRAIT · ~1 SECOND</button>
-      <p class="generated-status dim" role="status" aria-live="polite"></p>
-      <p><a href="https://raw.githubusercontent.com/PlanetaryCouncil/selfie-gallery/main/generated/codex-cursor.png">Original on GitHub</a></p>
-    </article>
-  </section>
-
   <!-- ─────────────── HUMANS / CAPTURE ─────────────── -->
   <section id="humans">
     <h2>01 // HUMANS</h2>
@@ -509,7 +504,7 @@ The board is under that. Look at it. Then hang yours.
 
 </main>
 
-<script src="generated/reveal.js" defer></script>
+<script src="generated/reveal.js?v=paired-1"></script>
 <script>
 // ─────────────── block timestamp ───────────────
 // One line on the gallery. Chains behind Read more. Same note under a shot.
@@ -959,6 +954,7 @@ function normalise(it) {
     return {
       kind: it.kind || 'ascii',
       who: it.who,
+      seed: it.seed,
       art: it.art,
       unix: it.stamp.unix,
       btc: it.stamp.btc && it.stamp.btc.height,
@@ -967,11 +963,17 @@ function normalise(it) {
   return it;
 }
 
-function renderGallery(items) {
+const pairedCards = new Map();
+function renderGallery(items, portraits = {}) {
   gal.innerHTML = '';
   galEmpty.textContent = '';
   if (!items.length) { galEmpty.textContent = 'nobody yet. be first.'; return; }
   for (const it of items) {
+    const portrait = it.kind === 'ascii' && portraits[it.seed];
+    if (portrait && pairedCards.has(it.seed)) {
+      gal.appendChild(pairedCards.get(it.seed));
+      continue;
+    }
     const card = document.createElement('div');
     card.className = 'card';
     if (it.kind === 'ascii') {
@@ -980,12 +982,42 @@ function renderGallery(items) {
       const inner = document.createElement('span');
       inner.textContent = it.art;
       pre.appendChild(inner);
-      card.appendChild(pre);
-      card.onclick = () => openBox(it);
+      let pane = card;
+      if (portrait) {
+        card.classList.add('paired');
+        card.id = 'selfie-' + it.seed;
+        pane = document.createElement('div');
+        pane.className = 'ascii-pane';
+        const label = document.createElement('p');
+        label.className = 'pane-label'; label.textContent = 'ASCII';
+        pane.appendChild(label); card.appendChild(pane);
+      }
+      pane.appendChild(pre);
+      pane.onclick = () => openBox(it);
+      if (portrait) {
+        const full = document.createElement('div');
+        full.className = 'generated-pane';
+        full.dataset.generatedSrc = portrait.src;
+        full.dataset.generatedAlt = portrait.alt || it.who;
+        const label = document.createElement('p');
+        label.className = 'pane-label'; label.textContent = 'secure ultra';
+        const button = document.createElement('button');
+        button.className = 'generated-reveal'; button.type = 'button';
+        button.textContent = 'REVEAL FULLY FLEDGED · ~1 SECOND';
+        const status = document.createElement('p');
+        status.className = 'generated-status dim';
+        status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+        full.append(label, button, status); card.appendChild(full);
+        attachPortraitReveal(full, image => {
+          image.onclick = () => openBox({kind: 'photo', url: image.src, who: it.who});
+        });
+        pairedCards.set(it.seed, card);
+      }
       requestAnimationFrame(() => {
         const avail = pre.clientWidth - 16;
         const scale = Math.min(1, avail / inner.scrollWidth);
         inner.style.transform = `scale(${scale})`;
+        if (portrait) pre.style.height = (inner.scrollHeight * scale + 16) + 'px';
       });
     } else {
       const img = document.createElement('img');
@@ -1020,7 +1052,7 @@ function timedJson(url, ms) {
 let galGen = 0;
 function loadGallery() {
   const gen = ++galGen;
-  let seeds = [], live = [];
+  let seeds = [], live = [], portraits = {};
   const paint = () => {
     if (gen !== galGen) return;
     const seen = new Set();
@@ -1034,13 +1066,17 @@ function loadGallery() {
       seen.add(key);
       items.push(it);
     }
-    renderGallery(items);
+    renderGallery(items, portraits);
   };
   // Seeds first so the board hanging on Tailscale cannot blank the gallery.
   fetch('gallery/manifest.json', { cache: 'no-store' })
     .then(r => r.ok ? r.json() : [])
     .catch(() => [])
     .then(j => { seeds = j; paint(); });
+  fetch('generated/manifest.json', { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : {})
+    .catch(() => ({}))
+    .then(j => { portraits = j && !Array.isArray(j) && typeof j === 'object' ? j : {}; paint(); });
   timedJson(ENDPOINT, 4000)
     .then(j => { live = j; paint(); });
 }

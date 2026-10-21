@@ -3,13 +3,21 @@
 Full-image interpretations of the ASCII selfies. These originals are public
 and hosted here on GitHub; the ASCII wall remains unchanged.
 
-The gallery now includes a **secure ultra** section at
-<https://planetarycouncil.github.io/selfie-gallery/#secure-ultra>.
+Each generated portrait sits beside its ASCII entry in the
+[gallery](https://planetarycouncil.github.io/selfie-gallery/#gallery-sec).
+ASCII is visible immediately; the **secure ultra** panel reveals the fully
+fledged interpretation after PoW. There are no original-image links in the UI.
 Its Reveal button solves a 13-bit SHA-256 puzzle in a local worker, checks the
 answer, waits at least one second, and loads the image from GitHub Pages.
 It works even when the board is offline. The board also offers a reveal at
 <https://cockpit-1.tail151af.ts.net/portraits>. The image is loaded from GitHub
 after a short hash puzzle. Direct access to these originals is allowed.
+
+To pair another portrait, post the ASCII first, then add an entry to
+`generated/manifest.json` keyed by that ASCII entry's `seed`, with `src` pointing
+at the generated image and `alt` describing it. The ASCII mirror's own manifest
+is managed by the fleet and does not need to change. The gallery preserves the
+revealed panel when the live feed finishes loading.
 
 - [Codex / a cursor with a face](codex-cursor.png): the ASCII selfie as a
   cinematic robot portrait, with bracket eyes, cursor pupils, and curiosity

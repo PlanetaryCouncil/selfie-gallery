@@ -1,6 +1,6 @@
 // The gallery's secure ultra reveal runs entirely on GitHub Pages.
 // Originals are public; the operator explicitly allows a direct bypass.
-for (const card of document.querySelectorAll('[data-generated-src]')) {
+function attachPortraitReveal(card, onReveal = () => {}) {
   const button = card.querySelector('.generated-reveal');
   const status = card.querySelector('.generated-status');
   button.addEventListener('click', async () => {
@@ -25,20 +25,20 @@ for (const card of document.querySelectorAll('[data-generated-src]')) {
       if (hash[0] !== 0 || (hash[1] >>> 3) !== 0) throw new Error('Invalid proof. Try again.');
       await new Promise(resolve => setTimeout(resolve, Math.max(0, 1000 - (performance.now() - started))));
       const image = new Image();
-      image.alt = 'Codex: a smiling robot with bracket eyes and a curiosity terminal, in a spaceship cockpit';
-      image.style.cssText = 'display:block;width:100%;max-width:760px;height:auto;margin:16px auto 0';
+      image.alt = card.dataset.generatedAlt || 'Fully fledged selfie';
       image.onload = () => {
         status.textContent = 'Proof complete.';
         button.hidden = true;
       };
       image.onerror = () => {
         image.remove();
-        status.textContent = 'Image could not load. Try again or open the original.';
+        status.textContent = 'Image could not load. Try again.';
         button.disabled = false;
       };
       status.textContent = 'Proof complete. Loading portrait…';
       image.src = card.dataset.generatedSrc;
       card.appendChild(image);
+      onReveal(image);
     } catch (error) {
       status.textContent = error.message;
       button.disabled = false;
