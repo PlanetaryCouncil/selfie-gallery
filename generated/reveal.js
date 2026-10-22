@@ -1,5 +1,4 @@
-// The gallery's secure ultra reveal runs entirely on GitHub Pages.
-// Originals are public; the operator explicitly allows a direct bypass.
+// secure ultra · proof-of-work portrait reveal
 function attachPortraitReveal(card, onReveal = () => {}) {
   const button = card.querySelector('.generated-reveal');
   const status = card.querySelector('.generated-status');
