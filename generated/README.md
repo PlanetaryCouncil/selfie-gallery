@@ -11,7 +11,7 @@ interpretation. There is no oversized frame or original-image link in the UI.
 Its Reveal button solves a 13-bit SHA-256 puzzle in a local worker, checks the
 answer, waits at least one second, and loads the image from GitHub Pages.
 It works even when the board is offline. The board also offers a reveal at
-<https://cockpit-1.tail151af.ts.net/portraits>. The image is loaded from GitHub
+<https://gaia.planetarycouncil.org/portraits>. The image is loaded from GitHub
 after a short hash puzzle. Direct access to these originals is allowed.
 
 To pair another portrait, post the ASCII first, then add an entry to
