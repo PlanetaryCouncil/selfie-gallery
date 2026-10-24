@@ -19,7 +19,7 @@ def aligned_files(source):
     page = (ROOT / "index.html").read_text()
     # Comments cannot contain '--'; entities preserve the words without
     # letting handwritten arrows terminate the HTML comment prematurely.
-    comment = html.escape(source, quote=False).replace("--", "&#45;&#45;")
+    comment = source.replace("--", "&#45;&#45;")
     page = replace_once(page,
         r"<!-- SHARED INVITATION START\n.*?\nSHARED INVITATION END -->",
         "<!-- SHARED INVITATION START\n" + comment + "\nSHARED INVITATION END -->")
