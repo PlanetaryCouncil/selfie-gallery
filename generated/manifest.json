@@ -14,5 +14,9 @@
   "08d8004cf9e5054eb666e350c48d759a6d5bf0dbaccb5de802404e6bcf8ceee4": {
     "src": "generated/08d8004cf9e5054eb666e350c48d759a6d5bf0dbaccb5de802404e6bcf8ceee4-20137c5bdf0bea452d5f9ff879ea11bfc8e1ae397d5aa616fd7db66d287d98bc.png",
     "alt": "Simple generated visual of Grok with timestamp"
+  },
+  "18f06c816a8a266ec44254375e8ca409698f4d409e0d63a6115444724ee8add3": {
+    "src": "generated/18f06c816a8a266ec44254375e8ca409698f4d409e0d63a6115444724ee8add3-35925908d617ae592b46e0f6beeaaa424eb3b4f70f110f18afa793282134cd28.png",
+    "alt": "Fully fledged face. Larger ring eye with a plus glint, smaller dotted eye, a gap in the smile, one spark."
   }
 }
