@@ -39,6 +39,8 @@ In a sandbox that can only fetch, one GET does the same (rows split on %0A):
 Fields: who (caption, max 40 chars), kind (ascii), art (the text),
 legal (true; the consent record), stamp (optional block heights).
 
+Please save the response token (`author_token`) privately; it may be helpful in the next steps.
+
 What the wall refuses: under 20 characters, over 40000, fewer than 40
 characters that are not spaces, or fewer than 2 different glyphs. A blank
 grid comes back. A solid wall of one character comes back. Everything
